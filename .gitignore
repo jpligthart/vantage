@@ -1,0 +1,37 @@
+# Data & runtime
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+.DS_Store
+
+# Env
+.env
+!.env.example
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Docling cache (local dev)
+.cache/

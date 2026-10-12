@@ -1,0 +1,1 @@
+"""Review Assistant backend application."""

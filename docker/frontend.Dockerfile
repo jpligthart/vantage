@@ -1,0 +1,20 @@
+FROM node:22-bookworm-slim AS base
+WORKDIR /app/frontend
+
+FROM base AS dev
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+COPY frontend .
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
+FROM base AS build
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+COPY frontend .
+RUN npm run build
+
+FROM nginx:alpine AS prod
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/frontend/dist /usr/share/nginx/html
+EXPOSE 80
