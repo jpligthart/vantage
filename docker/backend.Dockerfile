@@ -21,6 +21,7 @@ RUN pip install -e /app/backend
 
 RUN useradd -m -u 1000 appuser && mkdir -p /app/data && chown -R appuser:appuser /app
 USER appuser
+WORKDIR /app/backend
 
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "/app/backend"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

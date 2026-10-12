@@ -24,11 +24,13 @@ Local document review assistant for teachers (phase 1 MVP).
    docker compose up --build
    ```
 
-4. Open [http://127.0.0.1:5173](http://127.0.0.1:5173)
+4. Open [http://127.0.0.1:7847](http://127.0.0.1:7847) (change `HOST_WEB_PORT` in `.env` if needed).
 
 5. Drag a PDF or DOCX onto the window, pick an Ollama model, wait for processing, then chat.
 
-Backend API: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+API docs (via Vite proxy, same port): [http://127.0.0.1:7847/docs](http://127.0.0.1:7847/docs)
+
+With Docker Compose, the backend is **not** published on the host; only `127.0.0.1:7847` is exposed.
 
 ## Local development (without Docker)
 

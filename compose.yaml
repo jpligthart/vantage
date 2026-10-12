@@ -3,8 +3,9 @@ services:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
-    ports:
-      - "127.0.0.1:8000:8000"
+    # API only on the Compose network (browser reaches it via the frontend Vite proxy).
+    expose:
+      - "8000"
     env_file:
       - .env
     environment:
@@ -12,6 +13,7 @@ services:
       DATABASE_URL: sqlite:////app/data/review_assistant.db
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_HOST: http://host.docker.internal:11434
+      CORS_ORIGINS: http://127.0.0.1:${HOST_WEB_PORT:-7847},http://localhost:${HOST_WEB_PORT:-7847}
     volumes:
       - ./data:/app/data
       - docling_models:/app/.cache
@@ -31,9 +33,11 @@ services:
       dockerfile: docker/frontend.Dockerfile
       target: dev
     ports:
-      - "127.0.0.1:5173:5173"
+      - "127.0.0.1:${HOST_WEB_PORT:-7847}:${VITE_DEV_PORT:-7847}"
     environment:
-      VITE_API_BASE_URL: http://127.0.0.1:8000
+      VITE_DEV_PORT: ${VITE_DEV_PORT:-7847}
+      VITE_API_BASE_URL: ""
+      VITE_PROXY_TARGET: http://backend:8000
     volumes:
       - ./frontend:/app/frontend
       - /app/frontend/node_modules

@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     chat_timeout_seconds: int = 120
     max_upload_bytes: int = 52_428_800
     processing_timeout_seconds: int = 600
+    cors_origins: str = (
+        "http://127.0.0.1:7847,http://localhost:7847,"
+        "http://127.0.0.1:5173,http://localhost:5173"
+    )
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def sources_dir(self) -> Path:

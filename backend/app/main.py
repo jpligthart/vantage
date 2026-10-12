@@ -26,16 +26,19 @@ def _run_migrations() -> None:
 
     settings = get_settings()
     root = Path(__file__).resolve().parents[1]
-    cfg = Config(str(root / "alembic.ini"))
+    ini_path = root / "alembic.ini"
+    cfg = Config(str(ini_path))
     cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    cfg.set_main_option("script_location", str(root / "migrations"))
     command.upgrade(cfg, "head")
 
 
 def create_app() -> FastAPI:
+    settings = get_settings()
     app = FastAPI(title="Review Assistant", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
+        allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
