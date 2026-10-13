@@ -1,5 +1,7 @@
 # Data & runtime
 data/
+# Docling / Hugging Face model weights (large; kept under data/)
+data/model-cache/
 *.db
 *.db-journal
 *.db-wal

@@ -73,6 +73,10 @@ export async function getSession(sessionId: string) {
   );
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  await request(`/api/sessions/${sessionId}`, { method: "DELETE" });
+}
+
 export async function getMessages(sessionId: string): Promise<MessageDto[]> {
   const data = await request<{ messages: MessageDto[] }>(`/api/sessions/${sessionId}/messages`);
   return data.messages;

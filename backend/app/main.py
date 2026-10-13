@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.sources_dir.mkdir(parents=True, exist_ok=True)
     settings.docling_dir.mkdir(parents=True, exist_ok=True)
+    (settings.data_dir / "model-cache" / "huggingface").mkdir(parents=True, exist_ok=True)
     _run_migrations()
     yield
 

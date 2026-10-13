@@ -11,6 +11,7 @@ import {
   getSource,
   getSourceStatus,
   listModels,
+  deleteSession,
   listSessions,
   pasteSource,
   uploadSource,
@@ -105,6 +106,21 @@ export default function App() {
     setHighlight(null);
   }
 
+  async function handleDeleteSession(id: string, title: string) {
+    if (!window.confirm(`Sessie "${title}" verwijderen? Het bronbestand blijft bewaard.`)) {
+      return;
+    }
+    await deleteSession(id);
+    if (activeSessionId === id) {
+      setActiveSessionId(null);
+      setSource(null);
+      setMessages([]);
+      setHighlight(null);
+      setSelection(undefined);
+    }
+    await refreshSessions();
+  }
+
   const sourceReady = source?.status === "ready";
 
   return (
@@ -130,15 +146,25 @@ export default function App() {
           <div className="p-2 text-xs text-slate-500 uppercase tracking-wide">Sessies</div>
           <ul className="flex-1 overflow-y-auto">
             {sessions.map((s) => (
-              <li key={s.id}>
+              <li key={s.id} className="group flex items-stretch">
                 <button
                   type="button"
                   onClick={() => openSession(s.id)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-800 ${
+                  className={`flex-1 min-w-0 text-left px-3 py-2 text-sm hover:bg-slate-800 truncate ${
                     activeSessionId === s.id ? "bg-slate-800" : ""
                   }`}
+                  title={s.title}
                 >
                   {s.title}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteSession(s.id, s.title)}
+                  className="px-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
+                  title="Sessie verwijderen"
+                  aria-label={`Sessie ${s.title} verwijderen`}
+                >
+                  ×
                 </button>
               </li>
             ))}

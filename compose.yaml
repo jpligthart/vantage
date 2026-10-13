@@ -16,7 +16,6 @@ services:
       CORS_ORIGINS: http://127.0.0.1:${HOST_WEB_PORT:-7847},http://localhost:${HOST_WEB_PORT:-7847}
     volumes:
       - ./data:/app/data
-      - docling_models:/app/.cache
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -45,6 +44,3 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
-
-volumes:
-  docling_models:
