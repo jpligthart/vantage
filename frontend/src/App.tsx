@@ -3,6 +3,7 @@ import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
 import { ImportActions } from "./features/import/ImportActions";
+import { SessionList } from "./features/sessions/SessionList";
 import {
   attachSource,
   createSession,
@@ -30,6 +31,8 @@ export default function App() {
   const [highlight, setHighlight] = useState<CitationDto | null>(null);
   const [selection, setSelection] = useState<{ text: string; chunkId?: string } | undefined>();
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const refreshSessions = useCallback(async () => {
     setSessions(await listSessions());
@@ -106,19 +109,25 @@ export default function App() {
     setHighlight(null);
   }
 
-  async function handleDeleteSession(id: string, title: string) {
-    if (!window.confirm(`Sessie "${title}" verwijderen? Het bronbestand blijft bewaard.`)) {
-      return;
+  async function confirmDeleteSession(id: string) {
+    setDeletingId(id);
+    setStatusText(null);
+    try {
+      await deleteSession(id);
+      if (activeSessionId === id) {
+        setActiveSessionId(null);
+        setSource(null);
+        setMessages([]);
+        setHighlight(null);
+        setSelection(undefined);
+      }
+      setConfirmDeleteId(null);
+      await refreshSessions();
+    } catch (e) {
+      setStatusText(e instanceof Error ? e.message : "Sessie verwijderen mislukt");
+    } finally {
+      setDeletingId(null);
     }
-    await deleteSession(id);
-    if (activeSessionId === id) {
-      setActiveSessionId(null);
-      setSource(null);
-      setMessages([]);
-      setHighlight(null);
-      setSelection(undefined);
-    }
-    await refreshSessions();
   }
 
   const sourceReady = source?.status === "ready";
@@ -144,31 +153,16 @@ export default function App() {
       <div className="flex flex-1 min-h-0">
         <aside className="w-56 border-r border-slate-800 flex flex-col">
           <div className="p-2 text-xs text-slate-500 uppercase tracking-wide">Sessies</div>
-          <ul className="flex-1 overflow-y-auto">
-            {sessions.map((s) => (
-              <li key={s.id} className="group flex items-stretch">
-                <button
-                  type="button"
-                  onClick={() => openSession(s.id)}
-                  className={`flex-1 min-w-0 text-left px-3 py-2 text-sm hover:bg-slate-800 truncate ${
-                    activeSessionId === s.id ? "bg-slate-800" : ""
-                  }`}
-                  title={s.title}
-                >
-                  {s.title}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteSession(s.id, s.title)}
-                  className="px-2 text-slate-500 hover:text-red-400 hover:bg-slate-800 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
-                  title="Sessie verwijderen"
-                  aria-label={`Sessie ${s.title} verwijderen`}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
+          <SessionList
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            confirmDeleteId={confirmDeleteId}
+            deletingId={deletingId}
+            onOpen={openSession}
+            onRequestDelete={(id) => setConfirmDeleteId(id)}
+            onCancelDelete={() => setConfirmDeleteId(null)}
+            onConfirmDelete={confirmDeleteSession}
+          />
           <ImportActions onFile={handleFile} onPasteText={handlePasteText} />
         </aside>
         <main className="flex-1 flex flex-col min-w-0">

@@ -74,7 +74,14 @@ export async function getSession(sessionId: string) {
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  await request(`/api/sessions/${sessionId}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}`, { method: "DELETE" });
+  if (!res.ok) {
+    throw new Error(await res.text() || res.statusText);
+  }
+  const text = await res.text();
+  if (text && res.headers.get("content-type")?.includes("json")) {
+    JSON.parse(text);
+  }
 }
 
 export async function getMessages(sessionId: string): Promise<MessageDto[]> {
