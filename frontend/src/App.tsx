@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChatPanel } from "./features/chat/ChatPanel";
+import { DocumentChrome } from "./features/documents/DocumentChrome";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
 import { ImportActions } from "./features/import/ImportActions";
@@ -170,30 +171,40 @@ export default function App() {
           {source?.status === "failed" && (
             <div className="px-4 py-2 text-sm text-red-400">{source.error}</div>
           )}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 flex flex-col">
             {source && sourceReady ? (
-              source.type === "pdf" ? (
-                <PdfViewer sourceId={source.id} highlight={highlight} />
-              ) : (
-                <DocxViewer sourceId={source.id} highlight={highlight} />
-              )
+              <>
+                <DocumentChrome source={source} />
+                {source.type === "pdf" ? (
+                  <PdfViewer
+                    sourceId={source.id}
+                    highlight={highlight}
+                    onTextSelect={(text) => setSelection({ text })}
+                  />
+                ) : (
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    <DocxViewer sourceId={source.id} highlight={highlight} />
+                  </div>
+                )}
+              </>
             ) : (
               <div className="h-full flex items-center justify-center text-slate-500 text-sm">
                 {activeSessionId ? "Wacht op document…" : "Open of importeer een document"}
               </div>
             )}
           </div>
-          {sourceReady && (
-            <div className="border-t border-slate-800 p-2">
+          {sourceReady && selection?.text && (
+            <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs">
+              <span className="text-slate-400 truncate flex-1">
+                Selectie: {selection.text.slice(0, 80)}
+                {selection.text.length > 80 ? "…" : ""}
+              </span>
               <button
                 type="button"
-                className="text-xs text-amber-400 underline"
-                onClick={() => {
-                  const text = window.prompt("Plak of typ een passage om te bespreken:");
-                  if (text) setSelection({ text });
-                }}
+                className="text-amber-400 underline shrink-0"
+                onClick={() => setSelection(undefined)}
               >
-                Bespreek selectie (tekst plakken)
+                wissen
               </button>
             </div>
           )}
