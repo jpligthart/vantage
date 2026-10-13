@@ -116,8 +116,16 @@ class AnalysisSession(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    sources: Mapped[list["SessionSource"]] = relationship(back_populates="session")
-    messages: Mapped[list["ConversationMessage"]] = relationship(back_populates="session")
+    sources: Mapped[list["SessionSource"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    messages: Mapped[list["ConversationMessage"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class SessionSource(Base):
@@ -146,7 +154,11 @@ class ConversationMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["AnalysisSession"] = relationship(back_populates="messages")
-    citations: Mapped[list["Citation"]] = relationship(back_populates="message")
+    citations: Mapped[list["Citation"]] = relationship(
+        back_populates="message",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class Citation(Base):
