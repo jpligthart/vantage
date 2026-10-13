@@ -209,7 +209,7 @@ export default function App() {
             </div>
           )}
         </main>
-        <section className="w-[380px] min-w-[320px]">
+        <section className="w-[380px] min-w-[320px] min-h-0 flex flex-col">
           <ChatPanel
             sessionId={activeSessionId}
             model={model}

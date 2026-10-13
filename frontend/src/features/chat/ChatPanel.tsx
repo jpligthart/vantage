@@ -38,7 +38,8 @@ export function ChatPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const canSend = Boolean(sessionId && model && sourceReady && !busy && input.trim());
+  const canType = Boolean(sessionId && model && sourceReady && !busy);
+  const canSend = canType && input.trim().length > 0;
 
   async function send() {
     if (!sessionId || !model || !input.trim()) return;
@@ -173,7 +174,7 @@ export function ChatPanel({
           className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm min-h-[72px]"
           placeholder="Stel een vraag..."
           value={input}
-          disabled={!canSend}
+          disabled={!canType}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
