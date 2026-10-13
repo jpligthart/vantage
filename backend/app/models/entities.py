@@ -22,6 +22,7 @@ class SourceStatus(str, enum.Enum):
 class SourceType(str, enum.Enum):
     pdf = "pdf"
     docx = "docx"
+    text = "text"
 
 
 class MessageRole(str, enum.Enum):

@@ -30,7 +30,7 @@ export interface SessionDto {
 export interface SourceDto {
   id: string;
   name: string;
-  type: "pdf" | "docx";
+  type: "pdf" | "docx" | "text";
   status: "queued" | "processing" | "ready" | "failed";
   error?: string | null;
 }

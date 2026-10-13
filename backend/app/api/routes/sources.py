@@ -8,10 +8,34 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.documents.processor import process_source
 from app.documents.service import delete_source, get_source_or_404, get_structure, source_to_dict
+from app.api.schemas import SourcePaste
+from app.documents.paste import save_pasted_text
 from app.documents.upload import save_upload
 from app.models.entities import Source, SourceStatus, SourceType
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
+
+
+@router.post("/paste")
+async def paste_source(
+    body: SourcePaste,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict:
+    settings = get_settings()
+    source_id, dest, checksum, name = save_pasted_text(body.text, settings, body.title)
+    source = Source(
+        id=source_id,
+        name=name,
+        type=SourceType.text,
+        storage_path=dest,
+        checksum=checksum,
+        status=SourceStatus.queued,
+    )
+    db.add(source)
+    db.commit()
+    background_tasks.add_task(_run_process, source_id)
+    return {"sourceId": source_id, "status": source.status.value}
 
 
 @router.post("/upload")
@@ -61,9 +85,12 @@ def get_source_status(source_id: str, db: Session = Depends(get_db)) -> dict:
 def get_source_content(source_id: str, db: Session = Depends(get_db)) -> FileResponse:
     source = get_source_or_404(db, source_id)
     path = Path(source.storage_path)
-    media = "application/pdf" if source.type == SourceType.pdf else (
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    if source.type == SourceType.pdf:
+        media = "application/pdf"
+    elif source.type == SourceType.text:
+        media = "text/plain; charset=utf-8"
+    else:
+        media = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     return FileResponse(path, media_type=media, filename=source.name)
 
 

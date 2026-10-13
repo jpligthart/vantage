@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
+import { ImportActions } from "./features/import/ImportActions";
 import {
   attachSource,
   createSession,
@@ -11,6 +12,7 @@ import {
   getSourceStatus,
   listModels,
   listSessions,
+  pasteSource,
   uploadSource,
 } from "./services/api";
 import type { CitationDto, MessageDto, SessionDto, SourceDto } from "./types/domain";
@@ -63,10 +65,8 @@ export default function App() {
     return () => clearInterval(timer);
   }, [source]);
 
-  async function handleFile(file: File) {
-    setStatusText("Uploaden…");
-    const { sourceId } = await uploadSource(file);
-    const session = await createSession(file.name, model || undefined);
+  async function startWithSource(sourceId: string, sessionTitle: string) {
+    const session = await createSession(sessionTitle, model || undefined);
     await attachSource(session.id, sourceId);
     const src = await getSource(sourceId);
     setSource(src);
@@ -74,6 +74,19 @@ export default function App() {
     setMessages([]);
     setStatusText("Document verwerken…");
     await refreshSessions();
+  }
+
+  async function handleFile(file: File) {
+    setStatusText("Uploaden…");
+    const { sourceId } = await uploadSource(file);
+    await startWithSource(sourceId, file.name);
+  }
+
+  async function handlePasteText(text: string, title?: string) {
+    setStatusText("Tekst importeren…");
+    const { sourceId } = await pasteSource(text, title);
+    const sessionTitle = title?.trim() || "Geplakte tekst";
+    await startWithSource(sourceId, sessionTitle);
   }
 
   function onDrop(e: React.DragEvent) {
@@ -130,7 +143,7 @@ export default function App() {
               </li>
             ))}
           </ul>
-          <p className="p-2 text-xs text-slate-500">Sleep een PDF/DOCX hierheen</p>
+          <ImportActions onFile={handleFile} onPasteText={handlePasteText} />
         </aside>
         <main className="flex-1 flex flex-col min-w-0">
           {statusText && <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200">{statusText}</div>}

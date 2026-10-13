@@ -67,6 +67,75 @@ def _build_html_preview(dl_doc: DoclingDocument, anchor_map: dict[str, str]) -> 
     )
 
 
+def _process_plain_text_file(
+    db: Session, source: Source, path: Path, settings
+) -> None:
+    raw = path.read_text(encoding="utf-8").strip()
+    if not raw:
+        raise ValueError("Geen tekst om te verwerken.")
+
+    settings.docling_dir.mkdir(parents=True, exist_ok=True)
+    document = Document(
+        source_id=source.id,
+        title=source.name,
+        page_count=None,
+        docling_json_path=None,
+    )
+    db.add(document)
+    db.flush()
+
+    default_section = DocumentSection(
+        document_id=document.id,
+        title="Inhoud",
+        level=1,
+        order_index=0,
+    )
+    db.add(default_section)
+    db.flush()
+
+    prompt_index = 0
+    anchor_preview: dict[str, str] = {}
+    for piece in _split_text(raw, MAX_CHUNK_CHARS):
+        prompt_index += 1
+        chunk_id = str(uuid.uuid4())
+        anchor_id = f"chunk-{prompt_index}"
+        chunk = SourceChunk(
+            id=chunk_id,
+            document_id=document.id,
+            section_id=default_section.id,
+            prompt_index=prompt_index,
+            anchor_id=anchor_id,
+            content=piece,
+            page_no=None,
+            section_title=default_section.title,
+            bbox_json=None,
+        )
+        db.add(chunk)
+        index_chunk(db, chunk_id, document.id, piece)
+        anchor_preview[anchor_id] = piece
+
+    html_path = settings.docling_dir / f"{source.id}.html"
+    html_path.write_text(_build_html_preview_from_anchors(anchor_preview), encoding="utf-8")
+    document.html_preview_path = str(html_path)
+
+
+def _build_html_preview_from_anchors(anchor_map: dict[str, str]) -> str:
+    body_parts: list[str] = []
+    for anchor_id, text in anchor_map.items():
+        body_parts.append(
+            f'<section id="{html.escape(anchor_id)}" class="chunk">'
+            f"<p>{html.escape(text)}</p></section>"
+        )
+    return (
+        "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
+        "<style>body{font-family:system-ui;max-width:800px;margin:2rem auto;line-height:1.5;white-space:pre-wrap}"
+        ".chunk{margin-bottom:1.5rem;padding:.5rem;border-left:3px solid #ccc}</style>"
+        "</head><body>"
+        + "".join(body_parts)
+        + "</body></html>"
+    )
+
+
 def process_source(db: Session, source_id: str) -> None:
     global _processing_lock
     settings = get_settings()
@@ -88,6 +157,13 @@ def process_source(db: Session, source_id: str) -> None:
         path = Path(source.storage_path)
         if not path.is_file():
             raise FileNotFoundError(f"Source file missing: {path}")
+
+        if source.type == SourceType.text:
+            _process_plain_text_file(db, source, path, settings)
+            source.status = SourceStatus.ready
+            db.commit()
+            logger.info("Processed text source %s", source_id)
+            return
 
         converter = DocumentConverter()
         result = converter.convert(str(path))

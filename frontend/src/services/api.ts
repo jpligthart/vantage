@@ -11,6 +11,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function pasteSource(text: string, title?: string): Promise<{ sourceId: string }> {
+  return request("/api/sources/paste", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, title }),
+  });
+}
+
 export async function uploadSource(file: File): Promise<{ sourceId: string }> {
   const form = new FormData();
   form.append("file", file);
