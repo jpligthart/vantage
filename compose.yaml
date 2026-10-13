@@ -1,5 +1,8 @@
+name: review-assistant
+
 services:
   backend:
+    container_name: review-assistant-backend
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -27,6 +30,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    container_name: review-assistant-frontend
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
