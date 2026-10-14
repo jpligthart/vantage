@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
 import { DocxViewer } from "./features/documents/DocxViewer";
@@ -166,61 +167,73 @@ export default function App() {
           />
           <ImportActions onFile={handleFile} onPasteText={handlePasteText} />
         </aside>
-        <main className="flex-1 flex flex-col min-w-0">
-          {statusText && <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200">{statusText}</div>}
-          {source?.status === "failed" && (
-            <div className="px-4 py-2 text-sm text-red-400">{source.error}</div>
-          )}
-          <div className="flex-1 min-h-0 flex flex-col">
-            {source && sourceReady ? (
-              <>
-                <DocumentChrome source={source} />
-                {source.type === "pdf" ? (
-                  <PdfViewer
-                    sourceId={source.id}
-                    highlight={highlight}
-                    onTextSelect={(text) => setSelection({ text })}
-                  />
+        <ResizableColumns
+          storageKey="review-assistant-doc-chat-ratio"
+          defaultTrailingRatio={0.58}
+          leadingMinPx={240}
+          trailingMinPx={300}
+          leading={
+            <main className="flex flex-1 flex-col min-h-0 min-w-0 h-full">
+              {statusText && (
+                <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0">{statusText}</div>
+              )}
+              {source?.status === "failed" && (
+                <div className="px-4 py-2 text-sm text-red-400 shrink-0">{source.error}</div>
+              )}
+              <div className="flex-1 min-h-0 flex flex-col">
+                {source && sourceReady ? (
+                  <>
+                    <DocumentChrome source={source} />
+                    {source.type === "pdf" ? (
+                      <PdfViewer
+                        sourceId={source.id}
+                        highlight={highlight}
+                        onTextSelect={(text) => setSelection({ text })}
+                      />
+                    ) : (
+                      <div className="flex-1 min-h-0 flex flex-col">
+                        <DocxViewer sourceId={source.id} highlight={highlight} />
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    <DocxViewer sourceId={source.id} highlight={highlight} />
+                  <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+                    {activeSessionId ? "Wacht op document…" : "Open of importeer een document"}
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                {activeSessionId ? "Wacht op document…" : "Open of importeer een document"}
               </div>
-            )}
-          </div>
-          {sourceReady && selection?.text && (
-            <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs">
-              <span className="text-slate-400 truncate flex-1">
-                Selectie: {selection.text.slice(0, 80)}
-                {selection.text.length > 80 ? "…" : ""}
-              </span>
-              <button
-                type="button"
-                className="text-amber-400 underline shrink-0"
-                onClick={() => setSelection(undefined)}
-              >
-                wissen
-              </button>
-            </div>
-          )}
-        </main>
-        <section className="w-[380px] min-w-[320px] min-h-0 flex flex-col">
-          <ChatPanel
-            sessionId={activeSessionId}
-            model={model}
-            sourceReady={Boolean(sourceReady)}
-            messages={messages}
-            onMessagesChange={setMessages}
-            onCitationClick={setHighlight}
-            selection={selection}
-            onClearSelection={() => setSelection(undefined)}
-          />
-        </section>
+              {sourceReady && selection?.text && (
+                <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs shrink-0">
+                  <span className="text-slate-400 truncate flex-1">
+                    Selectie: {selection.text.slice(0, 80)}
+                    {selection.text.length > 80 ? "…" : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-amber-400 underline shrink-0"
+                    onClick={() => setSelection(undefined)}
+                  >
+                    wissen
+                  </button>
+                </div>
+              )}
+            </main>
+          }
+          trailing={
+            <section className="min-h-0 flex flex-col h-full">
+              <ChatPanel
+                sessionId={activeSessionId}
+                model={model}
+                sourceReady={Boolean(sourceReady)}
+                messages={messages}
+                onMessagesChange={setMessages}
+                onCitationClick={setHighlight}
+                selection={selection}
+                onClearSelection={() => setSelection(undefined)}
+              />
+            </section>
+          }
+        />
       </div>
     </div>
   );

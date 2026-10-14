@@ -130,7 +130,7 @@ export function ChatPanel({
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 space-y-5 bg-slate-950/40">
         {!model && (
           <p className="text-sm text-amber-400">Kies een model in de balk bovenin om te chatten.</p>
         )}
