@@ -44,6 +44,10 @@ services:
     volumes:
       - ./frontend:/app/frontend
       - /app/frontend/node_modules
+    command:
+      - sh
+      - -c
+      - npm install && npm run dev -- --host 0.0.0.0 --port $${VITE_DEV_PORT:-7847}
     depends_on:
       backend:
         condition: service_healthy

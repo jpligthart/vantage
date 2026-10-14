@@ -218,6 +218,7 @@ async def stream_chat(
                     "excerpt": c.excerpt,
                     "bbox": c.bbox,
                     "anchorId": c.anchor_id,
+                    "promptIndex": c.prompt_index,
                 }
                 for c in citation_items
             ]

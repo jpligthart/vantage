@@ -6,7 +6,7 @@ COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend .
 EXPOSE 5173
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["sh", "-c", "npm install && npm run dev -- --host 0.0.0.0 --port ${VITE_DEV_PORT:-7847}"]
 
 FROM base AS build
 COPY frontend/package.json frontend/package-lock.json* ./

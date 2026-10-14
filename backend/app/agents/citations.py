@@ -20,6 +20,7 @@ class CitationItem:
     excerpt: str
     bbox: dict | None
     anchor_id: str | None
+    prompt_index: int | None
 
 
 def strip_markers_from_stream(text: str) -> str:
@@ -90,6 +91,7 @@ def build_citation_items(
                 excerpt=excerpt,
                 bbox=bbox_loader(chunk),
                 anchor_id=getattr(chunk, "anchor_id", None),
+                prompt_index=getattr(chunk, "prompt_index", None),
             )
         )
     return items

@@ -8,6 +8,7 @@ export interface CitationDto {
   excerpt: string;
   bbox: { l: number; t: number; r: number; b: number } | null;
   anchorId?: string | null;
+  promptIndex?: number | null;
 }
 
 export interface MessageDto {

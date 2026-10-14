@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ChatMode, CitationDto, MessageDto } from "../../types/domain";
 import { streamChat } from "../../services/api";
 import { cn } from "../../lib/utils";
+import { ChatMessage } from "./ChatMessage";
 
 const MODES: { id: ChatMode; label: string }[] = [
   { id: "explore", label: "Verkennen" },
@@ -145,27 +146,7 @@ export function ChatPanel({
           </div>
         )}
         {displayMessages.map((m) => (
-          <div key={m.id} className={cn("text-sm", m.role === "user" ? "text-slate-200" : "text-slate-100")}>
-            <div className="text-xs text-slate-500 mb-1">{m.role === "user" ? "Jij" : "Assistent"}</div>
-            <div className="whitespace-pre-wrap">{m.content}</div>
-            {m.contextStrategy === "full_document" && (
-              <div className="text-xs text-slate-500 mt-1">Gebaseerd op volledig document</div>
-            )}
-            {m.citations?.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {m.citations.map((c, i) => (
-                  <button
-                    key={`${c.chunkId}-${i}`}
-                    type="button"
-                    onClick={() => onCitationClick(c)}
-                    className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-600 hover:border-amber-500"
-                  >
-                    {c.pageNo ? `p. ${c.pageNo}` : c.sectionTitle || "Bron"}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ChatMessage key={m.id} message={m} onCitationClick={onCitationClick} />
         ))}
         {error && <p className="text-red-400 text-sm">{error}</p>}
       </div>

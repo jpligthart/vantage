@@ -30,6 +30,7 @@ def _citation_payload(db: Session, c) -> dict:
         "excerpt": c.excerpt,
         "bbox": json.loads(c.bbox_json) if c.bbox_json else None,
         "anchorId": chunk.anchor_id if chunk else None,
+        "promptIndex": chunk.prompt_index if chunk else None,
     }
 
 
