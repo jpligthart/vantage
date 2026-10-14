@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { BookOpen, FileText, FolderOpen, Plus, X } from "lucide-react";
 import { ImportActions } from "../import/ImportActions";
 import type { SourceDto } from "../../types/domain";
 
@@ -29,8 +30,11 @@ export function SourceBar({
   onAttachExisting,
   onOpenLibrary,
 }: Props) {
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState(sessionTitle);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const attached = new Set(sources.map((source) => source.id));
   const others = library.filter((source) => !attached.has(source.id));
 
@@ -38,100 +42,155 @@ export function SourceBar({
     setTitleDraft(sessionTitle);
   }, [sessionTitle]);
 
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setAddMenuOpen(false);
+        setPickerOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", onPointerDown);
+    return () => window.removeEventListener("mousedown", onPointerDown);
+  }, [addMenuOpen]);
+
   return (
-    <div className="border-b border-slate-800 bg-slate-900/80 shrink-0">
-      <div className="px-2 py-1.5">
-        <input
-          className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm"
-          aria-label="Sessienaam"
-          placeholder="Sessienaam"
-          value={titleDraft}
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onBlur={(e) => {
-            const next = e.currentTarget.value.trim();
-            if (next && next !== sessionTitle) onRenameSession(next);
-            else setTitleDraft(sessionTitle);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-        />
+    <div className="border-b border-slate-800 bg-slate-900/90 shrink-0">
+      {/* Row 1: Session header */}
+      <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-1.5">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <FolderOpen className="w-4 h-4 text-amber-500/80 shrink-0" aria-hidden />
+          <input
+            className="w-full bg-transparent hover:bg-slate-800/60 focus:bg-slate-950 border border-transparent focus:border-slate-700 rounded px-1.5 py-0.5 text-sm font-semibold text-slate-100 outline-none transition-colors truncate"
+            aria-label="Sessienaam"
+            placeholder="Sessienaam…"
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={(e) => {
+              const next = e.currentTarget.value.trim();
+              if (next && next !== sessionTitle) onRenameSession(next);
+              else setTitleDraft(sessionTitle);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            }}
+          />
+        </div>
+        <span className="text-[11px] text-slate-500 shrink-0">
+          {sources.length} {sources.length === 1 ? "bron" : "bronnen"}
+        </span>
       </div>
-      <div className="flex gap-1 overflow-x-auto px-2 pb-1">
-        {sources.map((source) => {
-          const active = source.id === activeSourceId;
-          return (
-            <div
-              key={source.id}
-              className={`flex items-center max-w-[14rem] rounded border ${
-                active ? "border-amber-600 bg-slate-800" : "border-slate-700 bg-slate-950"
-              }`}
-            >
-              <button
-                type="button"
-                onClick={() => onSelect(source.id)}
-                className="px-2 py-1 text-xs truncate text-left"
-                title={source.name}
+
+      {/* Row 2: Source tabs + Add button */}
+      <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
+          {sources.map((source) => {
+            const active = source.id === activeSourceId;
+            return (
+              <div
+                key={source.id}
+                className={`group flex items-center max-w-[15rem] rounded-md border text-xs transition-colors ${
+                  active
+                    ? "border-amber-500/80 bg-amber-500/10 text-amber-100 font-medium"
+                    : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                }`}
               >
-                {source.status === "failed" ? "⚠ " : ""}
-                {source.name}
-              </button>
-              <button
-                type="button"
-                onClick={() => onDetach(source.id)}
-                className="px-1.5 text-slate-500 hover:text-red-400 text-sm"
-                title="Loskoppelen van deze sessie"
-                aria-label={`${source.name} loskoppelen`}
-              >
-                ×
-              </button>
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex flex-wrap items-center gap-1 px-2 pb-2">
-        <ImportActions
-          compact
-          heading="Aan deze sessie"
-          hint={null}
-          onFile={onFile}
-          onPasteText={onPasteText}
-        />
-        <button
-          type="button"
-          className="text-sm px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700"
-          onClick={() => {
-            setPickerOpen((open) => !open);
-            onOpenLibrary();
-          }}
-        >
-          Bestaande bron
-        </button>
-      </div>
-      {pickerOpen && (
-        <div className="px-2 pb-2 max-h-40 overflow-y-auto">
-          {others.length === 0 ? (
-            <p className="text-xs text-slate-500">Geen andere bronnen.</p>
-          ) : (
-            <ul className="space-y-1">
-              {others.map((source) => (
-                <li key={source.id}>
-                  <button
-                    type="button"
-                    className="w-full text-left text-xs px-2 py-1 rounded hover:bg-slate-800 truncate"
-                    onClick={() => {
-                      onAttachExisting(source.id);
-                      setPickerOpen(false);
-                    }}
-                  >
+                <button
+                  type="button"
+                  onClick={() => onSelect(source.id)}
+                  className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 truncate text-left"
+                  title={source.name}
+                >
+                  <FileText className="w-3.5 h-3.5 shrink-0 opacity-70" aria-hidden />
+                  <span className="truncate">
+                    {source.status === "failed" ? "⚠ " : ""}
                     {source.name}
-                  </button>
-                </li>
-              ))}
-            </ul>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDetach(source.id)}
+                  className="pr-2 pl-0.5 py-1 text-slate-500 hover:text-red-400 transition-colors"
+                  title="Loskoppelen van deze sessie"
+                  aria-label={`${source.name} loskoppelen`}
+                >
+                  <X className="w-3 h-3" aria-hidden />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Add source popover */}
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setAddMenuOpen((open) => !open)}
+            className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md border border-dashed border-slate-700 text-slate-300 hover:border-amber-500/60 hover:text-amber-200 hover:bg-slate-800/60 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" aria-hidden />
+            Bron toevoegen
+          </button>
+
+          {addMenuOpen && (
+            <div className="absolute left-0 top-full mt-1.5 z-30 w-64 rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-xl space-y-1.5">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 px-2 py-0.5">
+                Aan deze sessie koppelen
+              </div>
+              <ImportActions
+                compact
+                heading=""
+                hint={null}
+                onFile={(file) => {
+                  setAddMenuOpen(false);
+                  onFile(file);
+                }}
+                onPasteText={(text, title) => {
+                  setAddMenuOpen(false);
+                  onPasteText(text, title);
+                }}
+              />
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-left transition-colors"
+                onClick={() => {
+                  setPickerOpen((open) => !open);
+                  onOpenLibrary();
+                }}
+              >
+                <BookOpen className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden />
+                Bestaande bron kiezen…
+              </button>
+
+              {pickerOpen && (
+                <div className="pt-1 border-t border-slate-800 max-h-40 overflow-y-auto">
+                  {others.length === 0 ? (
+                    <p className="text-xs text-slate-500 px-2 py-1.5">Geen andere bronnen beschikbaar.</p>
+                  ) : (
+                    <ul className="space-y-0.5">
+                      {others.map((source) => (
+                        <li key={source.id}>
+                          <button
+                            type="button"
+                            className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-800 text-slate-300 truncate"
+                            onClick={() => {
+                              onAttachExisting(source.id);
+                              setPickerOpen(false);
+                              setAddMenuOpen(false);
+                            }}
+                          >
+                            {source.name}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

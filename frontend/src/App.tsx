@@ -448,17 +448,17 @@ export default function App() {
   const sourceReady = activeSource?.status === "ready";
 
   return (
-    <div className="h-screen flex flex-col">
-      <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
-        <h1 className="font-semibold">Review Assistant</h1>
+    <div className="h-screen flex flex-col bg-slate-950 text-slate-100">
+      <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900 shrink-0">
+        <h1 className="font-semibold text-sm tracking-tight text-slate-100">Review Assistant</h1>
         <div className="flex items-center gap-2">
           <label className="text-xs text-slate-400">Model</label>
           <select
-            className="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sm"
+            className="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-amber-500/60"
             value={model || ""}
             onChange={(e) => onModelChange(e.target.value)}
           >
-            <option value="">— kies —</option>
+            <option value="">— kies model —</option>
             {models.map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
@@ -466,8 +466,20 @@ export default function App() {
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside className="w-64 border-r border-slate-800 flex flex-col">
-          <div className="p-2 text-xs text-slate-500 uppercase tracking-wide">Sessies</div>
+        <aside className="w-60 border-r border-slate-800 bg-slate-900/40 flex flex-col shrink-0">
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-800/70">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sessies</span>
+            <button
+              type="button"
+              className="text-xs px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+              onClick={() => {
+                setNewSessionOpen(true);
+                listSources().then(setLibrary).catch(() => setLibrary([]));
+              }}
+            >
+              + Nieuw
+            </button>
+          </div>
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
@@ -485,18 +497,6 @@ export default function App() {
             onCancelDeleteConversation={() => setConfirmDeleteConversationId(null)}
             onConfirmDeleteConversation={confirmDeleteConversation}
           />
-          <div className="p-2 border-t border-slate-800">
-            <button
-              type="button"
-              className="w-full text-sm px-2 py-1.5 rounded bg-amber-600 hover:bg-amber-500 font-medium"
-              onClick={() => {
-                setNewSessionOpen(true);
-                listSources().then(setLibrary).catch(() => setLibrary([]));
-              }}
-            >
-              Nieuwe sessie
-            </button>
-          </div>
         </aside>
         <ResizableColumns
           storageKey="review-assistant-doc-chat-ratio"

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Brain, ChevronDown, ChevronRight, FileCheck2, MessageSquare } from "lucide-react";
 import type { ChatMode, CitationDto, MessageDto, SourceDto } from "../../types/domain";
 import { streamChat } from "../../services/api";
 import { cn } from "../../lib/utils";
@@ -59,6 +60,7 @@ export function ChatPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState(conversationTitle);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -206,69 +208,127 @@ export function ChatPanel({
   }
 
   return (
-    <div className="flex flex-col h-full border-l border-slate-800">
-      <div className="border-b border-slate-800 p-2 space-y-2">
-        <input
-          className="w-full bg-transparent text-sm font-medium border-b border-transparent focus:border-slate-600 outline-none px-1"
-          value={titleDraft}
-          disabled={!conversationId}
-          aria-label="Gesprekstitel"
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onBlur={() => {
-            const next = titleDraft.trim();
-            if (next && next !== conversationTitle) onRenameConversation(next);
-            else setTitleDraft(conversationTitle);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          }}
-        />
-        <label className="block">
-          <span className="text-xs text-slate-500">Sessiegeheugen</span>
-          <textarea
-            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs min-h-[52px]"
-            placeholder="Korte notities die in elk gesprek van deze sessie meegaan"
-            value={memory}
-            disabled={!sessionId}
-            onChange={(e) => onMemoryChange(e.target.value)}
-            onBlur={onSaveMemory}
-          />
-        </label>
-        <div className="flex gap-1">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => setMode(m.id)}
-              className={cn(
-                "px-2 py-1 text-xs rounded",
-                mode === m.id ? "bg-amber-600 text-white" : "bg-slate-800 text-slate-300",
-              )}
-            >
-              {m.label}
-            </button>
-          ))}
+    <div className="flex flex-col h-full border-l border-slate-800 bg-slate-950/20">
+      <div className="border-b border-slate-800 bg-slate-900/90 px-3 py-2 space-y-2 shrink-0">
+        {/* Row 1: Conversation Title + Mode Selector */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <MessageSquare className="w-4 h-4 text-amber-500/80 shrink-0" aria-hidden />
+            <input
+              className="w-full bg-transparent hover:bg-slate-800/60 focus:bg-slate-950 border border-transparent focus:border-slate-700 rounded px-1.5 py-0.5 text-sm font-semibold text-slate-100 outline-none transition-colors truncate"
+              value={titleDraft}
+              disabled={!conversationId}
+              placeholder="Gesprekstitel…"
+              aria-label="Gesprekstitel"
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={() => {
+                const next = titleDraft.trim();
+                if (next && next !== conversationTitle) onRenameConversation(next);
+                else setTitleDraft(conversationTitle);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+            />
+          </div>
+
+          <div className="flex items-center bg-slate-950/80 p-0.5 rounded-md border border-slate-800 shrink-0">
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMode(m.id)}
+                className={cn(
+                  "px-2 py-1 text-xs rounded transition-colors",
+                  mode === m.id
+                    ? "bg-amber-600 text-white font-medium shadow-sm"
+                    : "text-slate-400 hover:text-slate-200",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
-        {contextLabel && <p className="text-xs text-slate-500">{contextLabel}</p>}
-        {sources.length > 0 && (
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {sources.map((source) => {
-              const checked = pinnedSourceIds.length === 0 || pinnedSourceIds.includes(source.id);
-              return (
-                <label key={source.id} className="flex items-center gap-1 text-xs text-slate-300 max-w-full">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onToggleSource(source.id)}
-                  />
-                  <span className="truncate" title={source.name}>
-                    {source.name}
-                  </span>
-                </label>
-              );
-            })}
+
+        {/* Row 2: Context Sources + Session Memory toggle */}
+        <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+          {sources.length > 0 ? (
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 mr-0.5">
+                <FileCheck2 className="w-3.5 h-3.5" aria-hidden />
+                Meenemen:
+              </span>
+              {sources.map((source) => {
+                const checked = pinnedSourceIds.length === 0 || pinnedSourceIds.includes(source.id);
+                return (
+                  <button
+                    key={source.id}
+                    type="button"
+                    onClick={() => onToggleSource(source.id)}
+                    title={checked ? `${source.name} wordt meegenomen in dit gesprek` : `${source.name} staat uit voor dit gesprek`}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border max-w-[13rem] transition-colors",
+                      checked
+                        ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
+                        : "border-slate-800 bg-slate-950/50 text-slate-500 line-through hover:text-slate-300",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "w-1.5 h-1.5 rounded-full shrink-0",
+                        checked ? "bg-amber-400" : "bg-slate-600",
+                      )}
+                    />
+                    <span className="truncate">{source.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <span className="text-xs text-slate-500">Geen bronnen gekoppeld</span>
+          )}
+
+          <button
+            type="button"
+            disabled={!sessionId}
+            onClick={() => setMemoryOpen((open) => !open)}
+            className={cn(
+              "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors shrink-0 ml-auto",
+              memoryOpen || memory.trim()
+                ? "border-amber-600/50 bg-amber-500/10 text-amber-200"
+                : "border-slate-800 bg-slate-950/60 text-slate-400 hover:text-slate-200",
+            )}
+            title="Sessiegeheugen bekijken of bewerken"
+          >
+            <Brain className="w-3.5 h-3.5" aria-hidden />
+            <span>Sessiegeheugen</span>
+            {memory.trim() && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="Gevuld" />
+            )}
+            {memoryOpen ? (
+              <ChevronDown className="w-3.5 h-3.5 opacity-70" aria-hidden />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 opacity-70" aria-hidden />
+            )}
+          </button>
+        </div>
+
+        {/* Collapsible Session Memory Drawer */}
+        {memoryOpen && (
+          <div className="pt-1">
+            <textarea
+              className="w-full bg-slate-950 border border-slate-700/80 focus:border-amber-500/60 rounded-md p-2 text-xs text-slate-200 min-h-[68px] outline-none"
+              placeholder="Korte notities of afspraken die in elk gesprek van deze sessie meegaan…"
+              value={memory}
+              disabled={!sessionId}
+              onChange={(e) => onMemoryChange(e.target.value)}
+              onBlur={onSaveMemory}
+            />
           </div>
         )}
+
+        {contextLabel && <p className="text-[11px] text-slate-500">{contextLabel}</p>}
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-5 bg-slate-950/40 scroll-smooth">
         {!model && (

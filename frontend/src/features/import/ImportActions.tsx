@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { ClipboardPaste, Upload } from "lucide-react";
 
 interface Props {
   onFile: (file: File) => void;
@@ -53,15 +54,16 @@ export function ImportActions({
   }
 
   return (
-    <div className={compact ? "flex flex-wrap gap-1" : "p-2 space-y-2 border-t border-slate-800"}>
+    <div className={compact ? "flex flex-col gap-1" : "p-2 space-y-2 border-t border-slate-800"}>
       {heading ? <p className="text-xs text-slate-500 w-full">{heading}</p> : null}
-      <div className={compact ? "contents" : "flex flex-col gap-1"}>
+      <div className="flex flex-col gap-1">
         <button
           type="button"
           disabled={disabled}
-          className="text-sm px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left"
+          className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 text-left transition-colors"
           onClick={() => inputRef.current?.click()}
         >
+          <Upload className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden />
           Bestand kiezen…
         </button>
         <input
@@ -78,9 +80,10 @@ export function ImportActions({
         <button
           type="button"
           disabled={disabled}
-          className="text-sm px-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-left"
+          className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 text-left transition-colors"
           onClick={pasteFromClipboard}
         >
+          <ClipboardPaste className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden />
           Plakken vanaf clipboard
         </button>
       </div>
