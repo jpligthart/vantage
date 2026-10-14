@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChatMode, CitationDto, MessageDto } from "../../types/domain";
 import { streamChat } from "../../services/api";
 import { cn } from "../../lib/utils";
@@ -38,8 +38,58 @@ export function ChatPanel({
   const [pendingCitations, setPendingCitations] = useState<CitationDto[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(messages.length);
+  const wasStreamingRef = useRef(false);
 
   const canType = Boolean(sessionId && model && sourceReady && !busy);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickToBottomRef.current = distanceFromBottom < 96;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function scrollChatToBottom(behavior: ScrollBehavior) {
+    const run = () => bottomRef.current?.scrollIntoView({ behavior, block: "end" });
+    requestAnimationFrame(() => requestAnimationFrame(run));
+  }
+
+  useLayoutEffect(() => {
+    const userJustSent = messages.length > prevMessageCountRef.current;
+    const hadStreaming = wasStreamingRef.current;
+    const streamStarted = Boolean(streaming) && !hadStreaming;
+    const streamEnded = !streaming && hadStreaming;
+    const streamActive = Boolean(streaming);
+    prevMessageCountRef.current = messages.length;
+    wasStreamingRef.current = streamActive;
+
+    if (userJustSent || streamStarted) {
+      stickToBottomRef.current = true;
+      scrollChatToBottom("smooth");
+      return;
+    }
+    if (streamEnded && stickToBottomRef.current) {
+      scrollChatToBottom("smooth");
+      return;
+    }
+    if ((streamActive || pendingCitations.length > 0) && stickToBottomRef.current) {
+      scrollChatToBottom("auto");
+    }
+  }, [messages, messages.length, streaming, pendingCitations.length]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    stickToBottomRef.current = true;
+    scrollChatToBottom("auto");
+  }, [sessionId]);
   const canSend = canType && input.trim().length > 0;
 
   async function send() {
@@ -58,6 +108,7 @@ export function ChatPanel({
       createdAt: new Date().toISOString(),
       citations: [],
     };
+    stickToBottomRef.current = true;
     onMessagesChange([...messages, userMsg]);
 
     try {
@@ -130,7 +181,7 @@ export function ChatPanel({
           </button>
         ))}
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-5 bg-slate-950/40">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-5 bg-slate-950/40 scroll-smooth">
         {!model && (
           <p className="text-sm text-amber-400">Kies een model in de balk bovenin om te chatten.</p>
         )}
@@ -149,6 +200,7 @@ export function ChatPanel({
           <ChatMessage key={m.id} message={m} onCitationClick={onCitationClick} />
         ))}
         {error && <p className="text-red-400 text-sm">{error}</p>}
+        <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
       </div>
       <div className="p-3 border-t border-slate-800">
         <textarea
