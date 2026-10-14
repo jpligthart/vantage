@@ -1,7 +1,9 @@
 from app.agents.citations import (
+    CitationItem,
     CitationStreamFilter,
     build_citation_items,
     extract_markers,
+    sort_citation_items,
     strip_markers_from_stream,
 )
 
@@ -38,6 +40,33 @@ def test_unknown_marker_not_in_citations():
 
 def test_strip_markers():
     assert "[[chunk:C1]]" not in strip_markers_from_stream("Tekst [[chunk:C1]] meer")
+
+
+def test_build_citation_items_sorted_by_document_order():
+    chunks = {
+        12: FakeChunk(12, "uuid-12", "late"),
+        3: FakeChunk(3, "uuid-3", "early"),
+    }
+    chunks[3].page_no = 3
+    chunks[12].page_no = 12
+    items = build_citation_items(
+        "[[chunk:C12]] [[chunk:C3]]",
+        chunks,
+        "src",
+        "doc.pdf",
+        lambda c: None,
+    )
+    assert [i.chunk_id for i in items] == ["uuid-3", "uuid-12"]
+
+
+def test_sort_citation_items_page_then_prompt_index():
+    items = [
+        CitationItem("b", "s", "d", 2, None, "x", None, None, 2),
+        CitationItem("a", "s", "d", None, None, "x", None, None, 5),
+        CitationItem("c", "s", "d", None, None, "x", None, None, 1),
+    ]
+    sorted_ids = [i.chunk_id for i in sort_citation_items(items)]
+    assert sorted_ids == ["b", "c", "a"]
 
 
 def test_stream_filter_holds_partial_marker():

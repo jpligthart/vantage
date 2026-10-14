@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.agents.citations import sort_citation_payloads
 from app.agents.chat import stream_chat
 from app.api.schemas import ChatRequest, SessionCreate, SessionSourceAttach
 from app.core.database import get_db
@@ -101,7 +102,9 @@ def session_messages(session_id: str, db: Session = Depends(get_db)) -> dict:
                 "mode": m.mode.value if m.mode else None,
                 "contextStrategy": m.context_strategy,
                 "createdAt": m.created_at.isoformat(),
-                "citations": [_citation_payload(db, c) for c in m.citations],
+                "citations": sort_citation_payloads(
+                    [_citation_payload(db, c) for c in m.citations]
+                ),
             }
             for m in messages
         ]

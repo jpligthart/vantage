@@ -68,6 +68,37 @@ def extract_markers(full_text: str) -> list[ParsedCitation]:
     return result
 
 
+def _document_order_key(
+    page_no: int | None,
+    prompt_index: int | None,
+    chunk_id: str,
+) -> tuple[int, int, str]:
+    missing = 2**31 - 1
+    return (
+        page_no if page_no is not None else missing,
+        prompt_index if prompt_index is not None else missing,
+        chunk_id,
+    )
+
+
+def sort_citation_items(items: list[CitationItem]) -> list[CitationItem]:
+    return sorted(
+        items,
+        key=lambda c: _document_order_key(c.page_no, c.prompt_index, c.chunk_id),
+    )
+
+
+def sort_citation_payloads(payloads: list[dict]) -> list[dict]:
+    return sorted(
+        payloads,
+        key=lambda p: _document_order_key(
+            p.get("pageNo"),
+            p.get("promptIndex"),
+            p.get("chunkId") or "",
+        ),
+    )
+
+
 def build_citation_items(
     full_text: str,
     index_to_chunk: dict[int, object],
@@ -94,4 +125,4 @@ def build_citation_items(
                 prompt_index=getattr(chunk, "prompt_index", None),
             )
         )
-    return items
+    return sort_citation_items(items)
