@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ChatMode, CitationDto, MessageDto } from "../../types/domain";
+import type { ChatMode, CitationDto, MessageDto, SourceDto } from "../../types/domain";
 import { streamChat } from "../../services/api";
 import { cn } from "../../lib/utils";
 import { ChatMessage } from "./ChatMessage";
@@ -12,22 +12,42 @@ const MODES: { id: ChatMode; label: string }[] = [
 
 interface Props {
   sessionId: string | null;
+  conversationId: string | null;
+  conversationTitle: string;
   model: string | null;
   sourceReady: boolean;
+  sources: SourceDto[];
+  pinnedSourceIds: string[];
+  memory: string;
   messages: MessageDto[];
   onMessagesChange: (msgs: MessageDto[]) => void;
   onCitationClick: (c: CitationDto) => void;
+  onRenameConversation: (title: string) => void;
+  onToggleSource: (sourceId: string) => void;
+  onMemoryChange: (value: string) => void;
+  onSaveMemory: () => void;
+  onRemember: (content: string) => void;
   selection?: { text: string; chunkId?: string };
   onClearSelection: () => void;
 }
 
 export function ChatPanel({
   sessionId,
+  conversationId,
+  conversationTitle,
   model,
   sourceReady,
+  sources,
+  pinnedSourceIds,
+  memory,
   messages,
   onMessagesChange,
   onCitationClick,
+  onRenameConversation,
+  onToggleSource,
+  onMemoryChange,
+  onSaveMemory,
+  onRemember,
   selection,
   onClearSelection,
 }: Props) {
@@ -38,13 +58,21 @@ export function ChatPanel({
   const [pendingCitations, setPendingCitations] = useState<CitationDto[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState(conversationTitle);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const prevMessageCountRef = useRef(messages.length);
   const wasStreamingRef = useRef(false);
 
-  const canType = Boolean(sessionId && model && sourceReady && !busy);
+  useEffect(() => {
+    setTitleDraft(conversationTitle);
+  }, [conversationId, conversationTitle]);
+
+  const conversationIdRef = useRef(conversationId);
+  conversationIdRef.current = conversationId;
+
+  const canType = Boolean(sessionId && conversationId && model && sourceReady && !busy);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -86,14 +114,17 @@ export function ChatPanel({
   }, [messages, messages.length, streaming, pendingCitations.length]);
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!conversationId) return;
+    setError(null);
+    setStreaming("");
     stickToBottomRef.current = true;
     scrollChatToBottom("auto");
-  }, [sessionId]);
+  }, [conversationId]);
   const canSend = canType && input.trim().length > 0;
 
   async function send() {
-    if (!sessionId || !model || !input.trim()) return;
+    if (!sessionId || !conversationId || !model || !input.trim()) return;
+    const convAtSend = conversationId;
     setBusy(true);
     setError(null);
     setStreaming("");
@@ -114,6 +145,7 @@ export function ChatPanel({
     try {
       await streamChat(
         sessionId,
+        convAtSend,
         {
           message: userText,
           mode,
@@ -127,7 +159,16 @@ export function ChatPanel({
           }
           if (type === "context" && data && typeof data === "object" && "strategy" in data) {
             const strat = (data as { strategy: string }).strategy;
-            if (strat === "full_document") setContextLabel("Gebaseerd op volledig document");
+            const count = "sourceCount" in data ? Number((data as { sourceCount: number }).sourceCount) : 1;
+            if (strat === "full_document") {
+              const skipped = "skipped" in data && Array.isArray((data as { skipped: unknown }).skipped)
+                ? (data as { skipped: string[] }).skipped
+                : [];
+              const base = count > 1 ? `Gebaseerd op ${count} documenten` : "Gebaseerd op volledig document";
+              setContextLabel(
+                skipped.length > 0 ? `${base}. Nog niet meegenomen: ${skipped.join(", ")}` : base,
+              );
+            }
           }
           if (type === "citations" && data && typeof data === "object" && "items" in data) {
             setPendingCitations((data as { items: CitationDto[] }).items);
@@ -142,9 +183,9 @@ export function ChatPanel({
       setError(e instanceof Error ? e.message : "Chat mislukt");
     } finally {
       setBusy(false);
-      if (sessionId) {
+      if (sessionId && conversationIdRef.current === convAtSend) {
         const { getMessages } = await import("../../services/api");
-        const serverMsgs = await getMessages(sessionId);
+        const serverMsgs = await getMessages(sessionId, convAtSend);
         onMessagesChange(serverMsgs);
         setStreaming("");
         setPendingCitations([]);
@@ -166,27 +207,78 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-col h-full border-l border-slate-800">
-      <div className="flex gap-1 p-2 border-b border-slate-800">
-        {MODES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMode(m.id)}
-            className={cn(
-              "px-2 py-1 text-xs rounded",
-              mode === m.id ? "bg-amber-600 text-white" : "bg-slate-800 text-slate-300",
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
+      <div className="border-b border-slate-800 p-2 space-y-2">
+        <input
+          className="w-full bg-transparent text-sm font-medium border-b border-transparent focus:border-slate-600 outline-none px-1"
+          value={titleDraft}
+          disabled={!conversationId}
+          aria-label="Gesprekstitel"
+          onChange={(e) => setTitleDraft(e.target.value)}
+          onBlur={() => {
+            const next = titleDraft.trim();
+            if (next && next !== conversationTitle) onRenameConversation(next);
+            else setTitleDraft(conversationTitle);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+        />
+        <label className="block">
+          <span className="text-xs text-slate-500">Sessiegeheugen</span>
+          <textarea
+            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded p-2 text-xs min-h-[52px]"
+            placeholder="Korte notities die in elk gesprek van deze sessie meegaan"
+            value={memory}
+            disabled={!sessionId}
+            onChange={(e) => onMemoryChange(e.target.value)}
+            onBlur={onSaveMemory}
+          />
+        </label>
+        <div className="flex gap-1">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMode(m.id)}
+              className={cn(
+                "px-2 py-1 text-xs rounded",
+                mode === m.id ? "bg-amber-600 text-white" : "bg-slate-800 text-slate-300",
+              )}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {contextLabel && <p className="text-xs text-slate-500">{contextLabel}</p>}
+        {sources.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {sources.map((source) => {
+              const checked = pinnedSourceIds.length === 0 || pinnedSourceIds.includes(source.id);
+              return (
+                <label key={source.id} className="flex items-center gap-1 text-xs text-slate-300 max-w-full">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggleSource(source.id)}
+                  />
+                  <span className="truncate" title={source.name}>
+                    {source.name}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-5 bg-slate-950/40 scroll-smooth">
         {!model && (
           <p className="text-sm text-amber-400">Kies een model in de balk bovenin om te chatten.</p>
         )}
-        {model && !sourceReady && (
-          <p className="text-sm text-slate-400">Wacht tot het document klaar is met verwerken.</p>
+        {model && conversationId && !sourceReady && (
+          <p className="text-sm text-slate-400">Wacht tot minstens één aangevinkte bron klaar is.</p>
+        )}
+        {sessionId && !conversationId && (
+          <p className="text-sm text-slate-400">Deze sessie heeft nog geen gesprek.</p>
         )}
         {selection?.text && (
           <div className="text-xs bg-slate-800 p-2 rounded border border-amber-700">
@@ -197,9 +289,14 @@ export function ChatPanel({
           </div>
         )}
         {displayMessages.map((m) => (
-          <ChatMessage key={m.id} message={m} onCitationClick={onCitationClick} />
+          <ChatMessage
+            key={m.id}
+            message={m}
+            onCitationClick={onCitationClick}
+            onRemember={m.role === "assistant" ? onRemember : undefined}
+          />
         ))}
-        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {error && <p className="text-red-400 text-sm whitespace-pre-wrap">{error}</p>}
         <div ref={bottomRef} className="h-px shrink-0" aria-hidden />
       </div>
       <div className="p-3 border-t border-slate-800">

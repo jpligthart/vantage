@@ -22,7 +22,7 @@ Houd antwoorden concreet, kritisch en beknopt.
 
 Gebruik onderwijsrichtlijnen als referentiekader, maar behandel niet iedere richtlijn automatisch als een harde beoordelingsnorm.
 
-Wanneer je naar een passage in het document verwijst, gebruik exact het formaat [[chunk:C<n>]] waarbij n het chunk-nummer is uit de documentcontext (bijvoorbeeld [[chunk:C3]]).
+Wanneer je naar een passage verwijst, gebruik exact het formaat [[chunk:D<d>C<n>]] waarbij d het documentnummer is en n het chunk-nummer uit de documentcontext (bijvoorbeeld [[chunk:D1C3]]).
 Verzin geen paginanummers. Gebruik alleen chunk-markers voor verwijzingen."""
 
 MODE_PROMPTS = {

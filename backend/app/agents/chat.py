@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 
 import httpx
 from pydantic_ai import Agent
@@ -17,40 +18,86 @@ from app.models.entities import (
     AnalysisSession,
     ChatMode,
     Citation,
+    Conversation,
     ConversationMessage,
+    ConversationSource,
     Document,
     MessageRole,
-    SessionSource,
     Source,
+    SourceChunk,
     SourceStatus,
 )
+from app.sessions.service import get_session_memory, session_sources
 
 logger = logging.getLogger(__name__)
 
 
-def _session_single_source(db: Session, session_id: str) -> tuple[Source, Document]:
-    links = db.query(SessionSource).filter(SessionSource.session_id == session_id).all()
-    if len(links) != 1:
-        raise ValueError("unsupported_source_count")
-    source = db.get(Source, links[0].source_id)
-    if source is None:
-        raise ValueError("source_not_found")
-    if source.status != SourceStatus.ready:
-        raise ValueError("source_not_ready")
-    doc = db.query(Document).filter(Document.source_id == source.id).first()
-    if doc is None:
-        raise ValueError("document_not_found")
-    return source, doc
+class CitedChunk:
+    """Chunk plus the source it came from, so markers stay unique across documents."""
+
+    def __init__(self, chunk: SourceChunk, source_id: str, document_name: str) -> None:
+        self.id = chunk.id
+        self.content = chunk.content
+        self.page_no = chunk.page_no
+        self.section_title = chunk.section_title
+        self.anchor_id = chunk.anchor_id
+        self.prompt_index = chunk.prompt_index
+        self.source_id = source_id
+        self.document_name = document_name
 
 
-def build_document_context(chunks: list) -> tuple[str, dict[int, object]]:
-    lines: list[str] = []
-    index_map: dict[int, object] = {}
-    for chunk in chunks:
-        label = f"C{chunk.prompt_index}"
-        index_map[chunk.prompt_index] = chunk
-        lines.append(f"[{label}] {chunk.content}")
-    return "\n\n".join(lines), index_map
+def context_sources(db: Session, session: AnalysisSession, conversation: Conversation) -> list[Source]:
+    sources = session_sources(db, session.id)
+    pins = (
+        db.query(ConversationSource.source_id)
+        .filter(ConversationSource.conversation_id == conversation.id)
+        .all()
+    )
+    if not pins:
+        return sources
+    allowed = {row[0] for row in pins}
+    return [source for source in sources if source.id in allowed]
+
+
+def build_multi_document_context(
+    documents: list[tuple[Source, list[SourceChunk]]],
+) -> tuple[str, dict[str, CitedChunk], list[dict]]:
+    blocks: list[str] = []
+    index_map: dict[str, CitedChunk] = {}
+    sizes: list[dict] = []
+    for doc_index, (source, chunks) in enumerate(documents, start=1):
+        lines = [f"## D{doc_index}: {source.name}"]
+        for chunk in chunks:
+            label = f"D{doc_index}C{chunk.prompt_index}"
+            cited = CitedChunk(chunk, source.id, source.name)
+            index_map[label] = cited
+            lines.append(f"[{label}] {chunk.content}")
+        text = "\n\n".join(lines)
+        sizes.append(
+            {"sourceId": source.id, "name": source.name, "tokens": count_tokens(text)}
+        )
+        blocks.append(text)
+    return "\n\n".join(blocks), index_map, sizes
+
+
+def _ready_documents(
+    db: Session, sources: list[Source]
+) -> tuple[list[tuple[Source, Document]], str | None]:
+    if not sources:
+        return [], "no_sources"
+    ready: list[tuple[Source, Document]] = []
+    saw_not_ready = False
+    for source in sources:
+        if source.status != SourceStatus.ready:
+            saw_not_ready = True
+            continue
+        doc = db.query(Document).filter(Document.source_id == source.id).first()
+        if doc is None:
+            return [], "document_not_found"
+        ready.append((source, doc))
+    if not ready:
+        return [], "source_not_ready" if saw_not_ready else "document_not_found"
+    return ready, None
 
 
 def _history_text(messages: list[ConversationMessage], budget_tokens: int) -> str:
@@ -69,35 +116,48 @@ def _history_text(messages: list[ConversationMessage], budget_tokens: int) -> st
 async def stream_chat(
     db: Session,
     session: AnalysisSession,
+    conversation: Conversation,
     user_content: str,
     mode: ChatMode,
     model_name: str,
     selection: str | None,
 ) -> AsyncIterator[tuple[str, dict]]:
     settings = get_settings()
-    try:
-        source, document = _session_single_source(db, session.id)
-    except ValueError as exc:
-        yield ("error", {"code": str(exc), "message": _error_message(str(exc))})
+    selected = context_sources(db, session, conversation)
+    ready, error_code = _ready_documents(db, selected)
+    if error_code:
+        yield ("error", {"code": error_code, "message": _error_message(error_code)})
         return
 
-    chunks = get_chunks_for_document(db, document.id)
-    doc_text, index_map = build_document_context(chunks)
+    documents = [
+        (source, get_chunks_for_document(db, document.id)) for source, document in ready
+    ]
+    doc_text, index_map, sizes = build_multi_document_context(documents)
+    memory = get_session_memory(db, session.id).strip()
+    memory_block = f"SESSIEGEHEUGEN:\n{memory}\n\n" if memory else ""
+    document_for_budget = f"{doc_text}\n\n{memory_block}".strip()
+
+    skipped = [source.name for source in selected if source.status != SourceStatus.ready]
     mode_prompt = MODE_PROMPTS.get(mode.value, MODE_PROMPTS["spar"])
     system = f"{BASE_SYSTEM_PROMPT}\n\n{mode_prompt}"
+    if skipped:
+        system += (
+            "\n\nDeze bronnen zijn aangevinkt maar nog niet beschikbaar, neem ze niet mee: "
+            + ", ".join(skipped)
+        )
     if selection:
         system += f"\n\nDe gebruiker heeft deze passage geselecteerd om te bespreken:\n{selection}"
 
     prior = (
         db.query(ConversationMessage)
-        .filter(ConversationMessage.session_id == session.id)
+        .filter(ConversationMessage.conversation_id == conversation.id)
         .order_by(ConversationMessage.created_at.asc())
         .all()
     )
     model_ctx = await _get_context_len(model_name)
     ok, remaining = fits_context(
         system=system,
-        document=doc_text,
+        document=document_for_budget,
         history="",
         user_message=user_content,
         model_context=model_ctx,
@@ -106,7 +166,7 @@ async def stream_chat(
     history = _history_text(prior, history_budget)
     ok, _ = fits_context(
         system=system,
-        document=doc_text,
+        document=document_for_budget,
         history=history,
         user_message=user_content,
         model_context=model_ctx,
@@ -116,27 +176,37 @@ async def stream_chat(
             "error",
             {
                 "code": "document_too_large",
-                "message": (
-                    "Het document past niet in het contextvenster van dit model. "
-                    "Kies een model met een groter contextvenster."
-                ),
+                "message": _too_large_message(sizes),
+                "sources": sizes,
             },
         )
         return
 
+    now = datetime.now(timezone.utc)
     user_msg = ConversationMessage(
-        session_id=session.id,
+        conversation_id=conversation.id,
         role=MessageRole.user,
         content=user_content,
         mode=mode,
     )
     db.add(user_msg)
+    session.updated_at = now
+    conversation.updated_at = now
     db.commit()
 
-    yield ("context", {"strategy": "full_document"})
+    yield (
+        "context",
+        {
+            "strategy": "full_document",
+            "sourceCount": len(documents),
+            "sources": sizes,
+            "skipped": skipped,
+        },
+    )
 
     prompt = (
         f"DOCUMENTCONTEXT:\n{doc_text}\n\n"
+        f"{memory_block}"
         f"GESPREK:\n{history}\n"
         f"GEBRUIKER: {user_content}"
     )
@@ -172,17 +242,18 @@ async def stream_chat(
 
     from app.agents.citations import strip_markers_from_stream
 
+    first_source = documents[0][0]
     citation_items = build_citation_items(
         full_response,
         index_map,
-        source.id,
-        source.name,
+        first_source.id,
+        first_source.name,
         chunk_bbox,
     )
     display_text = strip_markers_from_stream(full_response)
 
     assistant = ConversationMessage(
-        session_id=session.id,
+        conversation_id=conversation.id,
         role=MessageRole.assistant,
         content=display_text,
         mode=mode,
@@ -233,9 +304,18 @@ async def _get_context_len(model_name: str) -> int | None:
     return await get_model_context_length(model_name)
 
 
+def _too_large_message(sizes: list[dict]) -> str:
+    lines = "\n".join(f"- {item['name']}: {item['tokens']} tokens" for item in sizes)
+    return (
+        "De aangevinkte documenten passen niet in het contextvenster van dit model.\n"
+        f"{lines}\n"
+        "Zet een document uit voor dit gesprek, of kies een model met een groter contextvenster."
+    )
+
+
 def _error_message(code: str) -> str:
     messages = {
-        "unsupported_source_count": "Deze sessie moet precies één bron bevatten.",
+        "no_sources": "Deze sessie heeft nog geen bronnen.",
         "source_not_found": "Bron niet gevonden.",
         "source_not_ready": "Het document wordt nog verwerkt of is mislukt.",
         "document_not_found": "Document niet gevonden.",

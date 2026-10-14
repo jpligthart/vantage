@@ -4,9 +4,19 @@ interface Props {
   onFile: (file: File) => void;
   onPasteText: (text: string, title?: string) => void;
   disabled?: boolean;
+  heading?: string;
+  hint?: string | null;
+  compact?: boolean;
 }
 
-export function ImportActions({ onFile, onPasteText, disabled }: Props) {
+export function ImportActions({
+  onFile,
+  onPasteText,
+  disabled,
+  heading = "Bron toevoegen",
+  hint = "Of sleep PDF/DOCX op het venster",
+  compact = false,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteTitle, setPasteTitle] = useState("");
@@ -43,9 +53,9 @@ export function ImportActions({ onFile, onPasteText, disabled }: Props) {
   }
 
   return (
-    <div className="p-2 space-y-2 border-t border-slate-800">
-      <p className="text-xs text-slate-500">Bron toevoegen</p>
-      <div className="flex flex-col gap-1">
+    <div className={compact ? "flex flex-wrap gap-1" : "p-2 space-y-2 border-t border-slate-800"}>
+      {heading ? <p className="text-xs text-slate-500 w-full">{heading}</p> : null}
+      <div className={compact ? "contents" : "flex flex-col gap-1"}>
         <button
           type="button"
           disabled={disabled}
@@ -74,7 +84,7 @@ export function ImportActions({ onFile, onPasteText, disabled }: Props) {
           Plakken vanaf clipboard
         </button>
       </div>
-      <p className="text-xs text-slate-600">Of sleep PDF/DOCX op het venster</p>
+      {hint ? <p className="text-xs text-slate-600 w-full">{hint}</p> : null}
 
       {pasteOpen && (
         <div

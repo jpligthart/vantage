@@ -69,6 +69,28 @@ def test_sort_citation_items_page_then_prompt_index():
     assert sorted_ids == ["b", "c", "a"]
 
 
+def test_extract_document_scoped_marker():
+    markers = extract_markers("Zie [[chunk:D2C4]] en [[chunk:C1]].")
+    assert [(m.marker, m.prompt_index) for m in markers] == [("D2C4", 4), ("C1", 1)]
+
+
+def test_marker_key_keeps_source():
+    chunk = FakeChunk(1, "uuid-2", "from the second document")
+    chunk.source_id = "src-2"
+    chunk.document_name = "reflectie.docx"
+    items = build_citation_items(
+        "[[chunk:D2C1]]",
+        {"D2C1": chunk},
+        "src-1",
+        "verslag.pdf",
+        lambda c: None,
+    )
+    assert len(items) == 1
+    assert items[0].source_id == "src-2"
+    assert items[0].document_name == "reflectie.docx"
+    assert items[0].chunk_id == "uuid-2"
+
+
 def test_stream_filter_holds_partial_marker():
     f = CitationStreamFilter()
     assert f.feed("foo [[chu") == "foo "

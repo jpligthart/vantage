@@ -22,8 +22,14 @@ def source_to_dict(source: Source) -> dict:
         "type": source.type.value,
         "status": source.status.value,
         "error": source.error,
+        "student": source.student,
+        "subject": source.subject,
         "importedAt": source.imported_at.isoformat() if source.imported_at else None,
     }
+
+
+def list_sources(db: Session) -> list[Source]:
+    return db.query(Source).order_by(Source.imported_at.desc()).all()
 
 
 def get_structure(db: Session, source_id: str) -> dict:

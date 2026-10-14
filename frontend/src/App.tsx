@@ -1,32 +1,43 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
+import { SourceBar } from "./features/documents/SourceBar";
 import { ImportActions } from "./features/import/ImportActions";
 import { SessionList } from "./features/sessions/SessionList";
 import {
+  appendMemory,
   attachSource,
+  createConversation,
   createSession,
+  deleteConversation,
+  deleteSession,
+  detachSource,
   getMessages,
   getSession,
   getSource,
-  getSourceStatus,
   listModels,
-  deleteSession,
   listSessions,
+  listSources,
   pasteSource,
+  renameConversation,
+  saveMemory,
+  setConversationSources,
+  updateSession,
   uploadSource,
 } from "./services/api";
-import type { CitationDto, MessageDto, SessionDto, SourceDto } from "./types/domain";
+import type { CitationDto, MessageDto, SessionDetail, SessionDto, SourceDto } from "./types/domain";
 
 const MODEL_KEY = "review-assistant-model";
 
 export default function App() {
   const [sessions, setSessions] = useState<SessionDto[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [source, setSource] = useState<SourceDto | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string | null>(() => localStorage.getItem(MODEL_KEY));
@@ -35,10 +46,56 @@ export default function App() {
   const [statusText, setStatusText] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteConversationId, setConfirmDeleteConversationId] = useState<string | null>(null);
+  const [library, setLibrary] = useState<SourceDto[]>([]);
+  const [memory, setMemory] = useState("");
+  const memoryDirty = useRef(false);
+  const labelsSessionId = useRef<string | null>(null);
+  const loadSeq = useRef(0);
+  const preferredConversationId = useRef<string | null>(null);
+  const memoryQueue = useRef(Promise.resolve());
 
   const refreshSessions = useCallback(async () => {
     setSessions(await listSessions());
   }, []);
+
+  const loadDetail = useCallback(
+    async (
+      sessionId: string,
+      prefer?: { conversationId?: string | null; sourceId?: string | null },
+    ) => {
+      const seq = ++loadSeq.current;
+      const next = await getSession(sessionId);
+      if (seq !== loadSeq.current) return next;
+      setDetail(next);
+      const wanted = prefer?.conversationId ?? preferredConversationId.current;
+      const conversationId =
+        wanted && next.conversations.some((c) => c.id === wanted)
+          ? wanted
+          : next.conversations[0]?.id ?? null;
+      preferredConversationId.current = null;
+      setActiveConversationId(conversationId);
+      setActiveSourceId((current) => {
+        if (prefer?.sourceId && next.sources.some((source) => source.id === prefer.sourceId)) {
+          return prefer.sourceId;
+        }
+        if (current && next.sources.some((source) => source.id === current)) return current;
+        return next.sources[0]?.id ?? null;
+      });
+      if (!memoryDirty.current) setMemory(next.memory ?? "");
+      if (conversationId) {
+        const loaded = await getMessages(sessionId, conversationId);
+        if (seq !== loadSeq.current) return next;
+        setMessages(loaded);
+      } else setMessages([]);
+      const pending = next.sources.some(
+        (source) => source.status === "queued" || source.status === "processing",
+      );
+      if (!pending) setStatusText((current) => (current === "Document verwerken…" ? null : current));
+      return next;
+    },
+    [],
+  );
 
   useEffect(() => {
     refreshSessions();
@@ -47,58 +104,133 @@ export default function App() {
 
   useEffect(() => {
     if (!activeSessionId) return;
-    getMessages(activeSessionId).then(setMessages);
-    getSession(activeSessionId).then(async (s) => {
-      if (s.preferredModel && !model) {
-        setModel(s.preferredModel);
-        localStorage.setItem(MODEL_KEY, s.preferredModel);
-      }
-      const sid = s.sourceIds[0];
-      if (sid) setSource(await getSource(sid));
+    let cancelled = false;
+    loadDetail(activeSessionId).catch((e) => {
+      if (!cancelled) setStatusText(e instanceof Error ? e.message : "Sessie laden mislukt");
     });
-  }, [activeSessionId, model]);
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, loadDetail]);
 
   useEffect(() => {
-    if (!source || source.status === "ready" || source.status === "failed") return;
-    const id = source.id;
+    if (!detail || labelsSessionId.current === detail.id) return;
+    labelsSessionId.current = detail.id;
+    memoryDirty.current = false;
+    setMemory(detail.memory ?? "");
+  }, [detail]);
+
+  useEffect(() => {
+    if (detail?.preferredModel && !model) {
+      setModel(detail.preferredModel);
+      localStorage.setItem(MODEL_KEY, detail.preferredModel);
+    }
+  }, [detail, model]);
+
+  const sources = detail?.sources ?? [];
+  const pendingKey = sources
+    .filter((source) => source.status === "queued" || source.status === "processing")
+    .map((source) => source.id)
+    .join(",");
+
+  useEffect(() => {
+    if (!pendingKey || !activeSessionId) return;
+    const ids = pendingKey.split(",");
     const timer = setInterval(async () => {
-      const st = await getSourceStatus(id);
-      const updated = await getSource(id);
-      setSource(updated);
-      if (st.status === "ready") setStatusText(null);
-      if (st.status === "failed") setStatusText(updated.error || "Verwerking mislukt");
+      const updated = await Promise.all(ids.map((id) => getSource(id)));
+      setDetail((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          sources: current.sources.map(
+            (source) => updated.find((item) => item.id === source.id) ?? source,
+          ),
+        };
+      });
+      if (updated.every((source) => source.status === "ready" || source.status === "failed")) {
+        setStatusText((current) => (current === "Document verwerken…" ? null : current));
+      }
     }, 2000);
     return () => clearInterval(timer);
-  }, [source]);
+  }, [pendingKey, activeSessionId]);
+
+  function fail(error: unknown, fallback: string) {
+    setStatusText(error instanceof Error ? error.message : fallback);
+  }
 
   async function startWithSource(sourceId: string, sessionTitle: string) {
     const session = await createSession(sessionTitle, model || undefined);
     await attachSource(session.id, sourceId);
-    const src = await getSource(sourceId);
-    setSource(src);
+    labelsSessionId.current = null;
     setActiveSessionId(session.id);
     setMessages([]);
+    setHighlight(null);
+    setSelection(undefined);
     setStatusText("Document verwerken…");
     await refreshSessions();
   }
 
-  async function handleFile(file: File) {
-    setStatusText("Uploaden…");
-    const { sourceId } = await uploadSource(file);
-    await startWithSource(sourceId, file.name);
+  async function addSourceToSession(sourceId: string) {
+    if (!activeSessionId) {
+      const src = await getSource(sourceId);
+      await startWithSource(sourceId, src.name);
+      return;
+    }
+    await attachSource(activeSessionId, sourceId);
+    setStatusText("Document verwerken…");
+    await loadDetail(activeSessionId, {
+      conversationId: activeConversationId,
+      sourceId,
+    });
+    await refreshSessions();
   }
 
-  async function handlePasteText(text: string, title?: string) {
-    setStatusText("Tekst importeren…");
-    const { sourceId } = await pasteSource(text, title);
-    const sessionTitle = title?.trim() || "Geplakte tekst";
-    await startWithSource(sourceId, sessionTitle);
+  async function handleNewFile(file: File) {
+    try {
+      setStatusText("Uploaden…");
+      const { sourceId } = await uploadSource(file);
+      await startWithSource(sourceId, file.name);
+    } catch (error) {
+      fail(error, "Uploaden mislukt");
+    }
+  }
+
+  async function handleNewPaste(text: string, title?: string) {
+    try {
+      setStatusText("Tekst importeren…");
+      const { sourceId } = await pasteSource(text, title);
+      await startWithSource(sourceId, title?.trim() || "Geplakte tekst");
+    } catch (error) {
+      fail(error, "Tekst importeren mislukt");
+    }
+  }
+
+  async function handleAddFile(file: File) {
+    try {
+      setStatusText("Uploaden…");
+      const { sourceId } = await uploadSource(file);
+      await addSourceToSession(sourceId);
+    } catch (error) {
+      fail(error, "Uploaden mislukt");
+    }
+  }
+
+  async function handleAddPaste(text: string, title?: string) {
+    try {
+      setStatusText("Tekst importeren…");
+      const { sourceId } = await pasteSource(text, title);
+      await addSourceToSession(sourceId);
+    } catch (error) {
+      fail(error, "Tekst importeren mislukt");
+    }
   }
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    if (!file) return;
+    if (activeSessionId) handleAddFile(file);
+    else handleNewFile(file);
   }
 
   function onModelChange(value: string) {
@@ -106,9 +238,58 @@ export default function App() {
     localStorage.setItem(MODEL_KEY, value);
   }
 
-  async function openSession(id: string) {
-    setActiveSessionId(id);
+  function openSession(id: string) {
+    if (id === activeSessionId) return;
+    labelsSessionId.current = null;
+    memoryDirty.current = false;
     setHighlight(null);
+    setSelection(undefined);
+    setMessages([]);
+    setActiveSessionId(id);
+  }
+
+  async function openConversation(sessionId: string, conversationId: string) {
+    setHighlight(null);
+    if (sessionId !== activeSessionId) {
+      labelsSessionId.current = null;
+      memoryDirty.current = false;
+      preferredConversationId.current = conversationId;
+      setMessages([]);
+      setActiveSessionId(sessionId);
+      return;
+    }
+    setActiveConversationId(conversationId);
+    setMessages(await getMessages(sessionId, conversationId));
+  }
+
+  async function handleCreateConversation(sessionId: string) {
+    const created = await createConversation(sessionId);
+    await refreshSessions();
+    if (sessionId !== activeSessionId) {
+      labelsSessionId.current = null;
+      memoryDirty.current = false;
+      preferredConversationId.current = created.id;
+      setMessages([]);
+      setActiveSessionId(sessionId);
+      return;
+    }
+    await loadDetail(sessionId, { conversationId: created.id, sourceId: activeSourceId });
+  }
+
+  async function handleRenameConversation(title: string) {
+    if (!activeSessionId || !activeConversationId) return;
+    await renameConversation(activeSessionId, activeConversationId, title);
+    setDetail((current) =>
+      current
+        ? {
+            ...current,
+            conversations: current.conversations.map((conversation) =>
+              conversation.id === activeConversationId ? { ...conversation, title } : conversation,
+            ),
+          }
+        : current,
+    );
+    await refreshSessions();
   }
 
   async function confirmDeleteSession(id: string) {
@@ -118,10 +299,14 @@ export default function App() {
       await deleteSession(id);
       if (activeSessionId === id) {
         setActiveSessionId(null);
-        setSource(null);
+        setActiveConversationId(null);
+        setActiveSourceId(null);
+        setDetail(null);
         setMessages([]);
         setHighlight(null);
         setSelection(undefined);
+        setMemory("");
+        labelsSessionId.current = null;
       }
       setConfirmDeleteId(null);
       await refreshSessions();
@@ -132,7 +317,121 @@ export default function App() {
     }
   }
 
-  const sourceReady = source?.status === "ready";
+  async function confirmDeleteConversation(sessionId: string, conversationId: string) {
+    await deleteConversation(sessionId, conversationId);
+    setConfirmDeleteConversationId(null);
+    await refreshSessions();
+    if (sessionId === activeSessionId) {
+      await loadDetail(sessionId, {
+        conversationId: activeConversationId,
+        sourceId: activeSourceId,
+      });
+    }
+  }
+
+  async function saveSessionTitle(title: string) {
+    if (!activeSessionId || title === detail?.title) return;
+    try {
+      const updated = await updateSession(activeSessionId, { title });
+      setDetail(updated);
+      await refreshSessions();
+    } catch (error) {
+      fail(error, "Sessienaam opslaan mislukt");
+    }
+  }
+
+  async function handleDetach(sourceId: string) {
+    if (!activeSessionId) return;
+    await detachSource(activeSessionId, sourceId);
+    if (activeSourceId === sourceId) setActiveSourceId(null);
+    await loadDetail(activeSessionId, { conversationId: activeConversationId });
+  }
+
+  async function toggleContextSource(sourceId: string) {
+    if (!activeSessionId || !activeConversationId || !detail) return;
+    const conversation = detail.conversations.find((item) => item.id === activeConversationId);
+    const allIds = detail.sources.map((source) => source.id);
+    const pins = conversation?.sourceIds ?? [];
+    const current = pins.length === 0 ? allIds : pins.filter((id) => allIds.includes(id));
+    const next = current.includes(sourceId)
+      ? current.filter((id) => id !== sourceId)
+      : [...current, sourceId];
+    if (next.length === 0) {
+      setStatusText("Een gesprek houdt minstens één bron aan.");
+      return;
+    }
+    const result = await setConversationSources(activeSessionId, activeConversationId, next);
+    setDetail((currentDetail) =>
+      currentDetail
+        ? {
+            ...currentDetail,
+            conversations: currentDetail.conversations.map((item) =>
+              item.id === activeConversationId ? { ...item, sourceIds: result.sourceIds } : item,
+            ),
+          }
+        : currentDetail,
+    );
+    await refreshSessions();
+  }
+
+  function enqueueMemory(task: () => Promise<void>) {
+    const run = memoryQueue.current.then(task, task);
+    memoryQueue.current = run;
+    return run;
+  }
+
+  async function persistMemory() {
+    if (!activeSessionId || !memoryDirty.current) return;
+    const snapshot = memory;
+    const sessionId = activeSessionId;
+    memoryDirty.current = false;
+    try {
+      await enqueueMemory(async () => {
+        const saved = await saveMemory(sessionId, snapshot);
+        setMemory(saved.content);
+        setDetail((current) =>
+          current && current.id === sessionId ? { ...current, memory: saved.content } : current,
+        );
+      });
+    } catch (error) {
+      fail(error, "Sessiegeheugen opslaan mislukt");
+    }
+  }
+
+  async function remember(content: string) {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    memoryDirty.current = false;
+    try {
+      await enqueueMemory(async () => {
+        const saved = await appendMemory(sessionId, content);
+        setMemory(saved.content);
+        setDetail((current) =>
+          current && current.id === sessionId ? { ...current, memory: saved.content } : current,
+        );
+        setStatusText("In het sessiegeheugen gezet.");
+      });
+    } catch (error) {
+      fail(error, "Sessiegeheugen bijwerken mislukt");
+    }
+  }
+
+  function onCitationClick(citation: CitationDto) {
+    setHighlight(citation);
+    if (citation.sourceId && sources.some((source) => source.id === citation.sourceId)) {
+      setActiveSourceId(citation.sourceId);
+    }
+  }
+
+  const activeSource = sources.find((source) => source.id === activeSourceId) ?? null;
+  const conversation = detail?.conversations.find((item) => item.id === activeConversationId) ?? null;
+  const pinnedSourceIds = conversation?.sourceIds ?? [];
+  const contextSources =
+    pinnedSourceIds.length === 0
+      ? sources
+      : sources.filter((source) => pinnedSourceIds.includes(source.id));
+  const contextReady = contextSources.some((source) => source.status === "ready");
+  const sourceReady = activeSource?.status === "ready";
 
   return (
     <div className="h-screen flex flex-col" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
@@ -153,19 +452,31 @@ export default function App() {
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside className="w-56 border-r border-slate-800 flex flex-col">
+        <aside className="w-64 border-r border-slate-800 flex flex-col">
           <div className="p-2 text-xs text-slate-500 uppercase tracking-wide">Sessies</div>
           <SessionList
             sessions={sessions}
             activeSessionId={activeSessionId}
+            activeConversationId={activeConversationId}
             confirmDeleteId={confirmDeleteId}
             deletingId={deletingId}
+            confirmDeleteConversationId={confirmDeleteConversationId}
             onOpen={openSession}
+            onOpenConversation={openConversation}
+            onCreateConversation={handleCreateConversation}
             onRequestDelete={(id) => setConfirmDeleteId(id)}
             onCancelDelete={() => setConfirmDeleteId(null)}
             onConfirmDelete={confirmDeleteSession}
+            onRequestDeleteConversation={(id) => setConfirmDeleteConversationId(id)}
+            onCancelDeleteConversation={() => setConfirmDeleteConversationId(null)}
+            onConfirmDeleteConversation={confirmDeleteConversation}
           />
-          <ImportActions onFile={handleFile} onPasteText={handlePasteText} />
+          <ImportActions
+            heading="Nieuwe sessie"
+            hint="Slepen voegt een bestand toe aan de open sessie."
+            onFile={handleNewFile}
+            onPasteText={handleNewPaste}
+          />
         </aside>
         <ResizableColumns
           storageKey="review-assistant-doc-chat-ratio"
@@ -175,30 +486,54 @@ export default function App() {
           leading={
             <main className="flex flex-1 flex-col min-h-0 min-w-0 h-full">
               {statusText && (
-                <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0">{statusText}</div>
+                <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">{statusText}</div>
               )}
-              {source?.status === "failed" && (
-                <div className="px-4 py-2 text-sm text-red-400 shrink-0">{source.error}</div>
+              {activeSessionId && (
+                <SourceBar
+                  sources={sources}
+                  activeSourceId={activeSourceId}
+                  sessionTitle={detail?.title ?? ""}
+                  library={library}
+                  onRenameSession={saveSessionTitle}
+                  onSelect={setActiveSourceId}
+                  onDetach={handleDetach}
+                  onFile={handleAddFile}
+                  onPasteText={handleAddPaste}
+                  onAttachExisting={addSourceToSession}
+                  onOpenLibrary={() => {
+                    listSources().then(setLibrary).catch(() => setLibrary([]));
+                  }}
+                />
+              )}
+              {activeSource?.status === "failed" && (
+                <div className="px-4 py-2 text-sm text-red-400 shrink-0">{activeSource.error}</div>
               )}
               <div className="flex-1 min-h-0 flex flex-col">
-                {source && sourceReady ? (
+                {activeSource && sourceReady ? (
                   <>
-                    <DocumentChrome source={source} />
-                    {source.type === "pdf" ? (
+                    <DocumentChrome source={activeSource} />
+                    {activeSource.type === "pdf" ? (
                       <PdfViewer
-                        sourceId={source.id}
-                        highlight={highlight}
+                        sourceId={activeSource.id}
+                        highlight={highlight?.sourceId === activeSource.id ? highlight : null}
                         onTextSelect={(text) => setSelection({ text })}
                       />
                     ) : (
                       <div className="flex-1 min-h-0 flex flex-col">
-                        <DocxViewer sourceId={source.id} highlight={highlight} />
+                        <DocxViewer
+                          sourceId={activeSource.id}
+                          highlight={highlight?.sourceId === activeSource.id ? highlight : null}
+                        />
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                    {activeSessionId ? "Wacht op document…" : "Open of importeer een document"}
+                  <div className="h-full flex items-center justify-center text-slate-500 text-sm px-6 text-center">
+                    {activeSessionId
+                      ? activeSource
+                        ? "Wacht op document…"
+                        : "Voeg een document toe aan deze sessie"
+                      : "Open of importeer een document"}
                   </div>
                 )}
               </div>
@@ -223,11 +558,24 @@ export default function App() {
             <section className="min-h-0 flex flex-col h-full">
               <ChatPanel
                 sessionId={activeSessionId}
+                conversationId={activeConversationId}
+                conversationTitle={conversation?.title ?? ""}
                 model={model}
-                sourceReady={Boolean(sourceReady)}
+                sourceReady={contextReady}
+                sources={sources}
+                pinnedSourceIds={pinnedSourceIds}
+                memory={memory}
                 messages={messages}
                 onMessagesChange={setMessages}
-                onCitationClick={setHighlight}
+                onCitationClick={onCitationClick}
+                onRenameConversation={handleRenameConversation}
+                onToggleSource={toggleContextSource}
+                onMemoryChange={(value) => {
+                  memoryDirty.current = true;
+                  setMemory(value);
+                }}
+                onSaveMemory={persistMemory}
+                onRemember={remember}
                 selection={selection}
                 onClearSelection={() => setSelection(undefined)}
               />

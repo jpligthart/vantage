@@ -3,6 +3,7 @@ export type ChatMode = "explore" | "investigate" | "spar";
 export interface CitationDto {
   chunkId: string;
   sourceId: string | null;
+  documentName?: string | null;
   pageNo: number | null;
   sectionTitle: string | null;
   excerpt: string;
@@ -21,11 +22,26 @@ export interface MessageDto {
   citations: CitationDto[];
 }
 
+export interface ConversationDto {
+  id: string;
+  title: string;
+  updatedAt?: string | null;
+  sourceIds: string[];
+}
+
 export interface SessionDto {
   id: string;
   title: string;
   preferredModel?: string | null;
   updatedAt?: string | null;
+  student?: string | null;
+  subject?: string | null;
+  conversations: ConversationDto[];
+}
+
+export interface SessionDetail extends SessionDto {
+  memory: string;
+  sources: SourceDto[];
 }
 
 export interface SourceDto {
@@ -34,4 +50,6 @@ export interface SourceDto {
   type: "pdf" | "docx" | "text";
   status: "queued" | "processing" | "ready" | "failed";
   error?: string | null;
+  student?: string | null;
+  subject?: string | null;
 }

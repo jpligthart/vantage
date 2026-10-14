@@ -1,7 +1,8 @@
 import re
 from dataclasses import dataclass
 
-MARKER_RE = re.compile(r"\[\[chunk:(C\d+)\]\]")
+MARKER_RE = re.compile(r"\[\[chunk:((?:D\d+)?C\d+)\]\]")
+_C_PART_RE = re.compile(r"C(\d+)$")
 
 
 @dataclass
@@ -60,11 +61,10 @@ def extract_markers(full_text: str) -> list[ParsedCitation]:
         if marker in seen:
             continue
         seen.add(marker)
-        try:
-            idx = int(marker[1:])
-        except ValueError:
+        c_match = _C_PART_RE.search(marker)
+        if c_match is None:
             continue
-        result.append(ParsedCitation(prompt_index=idx, marker=marker))
+        result.append(ParsedCitation(prompt_index=int(c_match.group(1)), marker=marker))
     return result
 
 
@@ -108,15 +108,17 @@ def build_citation_items(
 ) -> list[CitationItem]:
     items: list[CitationItem] = []
     for parsed in extract_markers(full_text):
-        chunk = index_to_chunk.get(parsed.prompt_index)
+        chunk = index_to_chunk.get(parsed.marker)
+        if chunk is None:
+            chunk = index_to_chunk.get(parsed.prompt_index)
         if chunk is None:
             continue
         excerpt = chunk.content[:500] if len(chunk.content) > 500 else chunk.content
         items.append(
             CitationItem(
                 chunk_id=chunk.id,
-                source_id=source_id,
-                document_name=document_name,
+                source_id=getattr(chunk, "source_id", None) or source_id,
+                document_name=getattr(chunk, "document_name", None) or document_name,
                 page_no=chunk.page_no,
                 section_title=chunk.section_title,
                 excerpt=excerpt,

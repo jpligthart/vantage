@@ -1,4 +1,10 @@
-import type { ChatMode, MessageDto, SessionDto, SourceDto } from "../types/domain";
+import type {
+  ChatMode,
+  MessageDto,
+  SessionDetail,
+  SessionDto,
+  SourceDto,
+} from "../types/domain";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -36,6 +42,8 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
     type: string;
     status: string;
     error?: string;
+    student?: string | null;
+    subject?: string | null;
   }>(`/api/sources/${sourceId}`);
   return {
     id: data.id,
@@ -43,14 +51,32 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
     type: data.type as SourceDto["type"],
     status: data.status as SourceDto["status"],
     error: data.error,
+    student: data.student,
+    subject: data.subject,
   };
 }
 
+export async function listSources(): Promise<SourceDto[]> {
+  const data = await request<{ sources: SourceDto[] }>("/api/sources");
+  return data.sources;
+}
+
 export async function createSession(title: string, preferredModel?: string) {
-  return request<{ id: string }>("/api/sessions", {
+  return request<SessionDetail>("/api/sessions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title, preferredModel }),
+  });
+}
+
+export async function updateSession(
+  sessionId: string,
+  patch: { title?: string; student?: string | null; subject?: string | null },
+) {
+  return request<SessionDetail>(`/api/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
   });
 }
 
@@ -64,13 +90,76 @@ export async function attachSource(sessionId: string, sourceId: string) {
 
 export async function listSessions(): Promise<SessionDto[]> {
   const data = await request<{ sessions: SessionDto[] }>("/api/sessions");
-  return data.sessions;
+  return data.sessions.map((session) => ({
+    ...session,
+    conversations: session.conversations ?? [],
+  }));
 }
 
-export async function getSession(sessionId: string) {
-  return request<{ id: string; title: string; sourceIds: string[]; preferredModel?: string }>(
-    `/api/sessions/${sessionId}`,
+export async function getSession(sessionId: string): Promise<SessionDetail> {
+  const data = await request<SessionDetail>(`/api/sessions/${sessionId}`);
+  return { ...data, memory: data.memory ?? "", conversations: data.conversations ?? [], sources: data.sources ?? [] };
+}
+
+export async function detachSource(sessionId: string, sourceId: string) {
+  return request(`/api/sessions/${sessionId}/sources/${sourceId}`, { method: "DELETE" });
+}
+
+export async function createConversation(sessionId: string, title?: string) {
+  return request<{ id: string; title: string; sourceIds: string[] }>(
+    `/api/sessions/${sessionId}/conversations`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    },
   );
+}
+
+export async function renameConversation(sessionId: string, conversationId: string, title: string) {
+  return request(`/api/sessions/${sessionId}/conversations/${conversationId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function deleteConversation(sessionId: string, conversationId: string) {
+  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/conversations/${conversationId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+}
+
+export async function setConversationSources(
+  sessionId: string,
+  conversationId: string,
+  sourceIds: string[],
+) {
+  return request<{ sourceIds: string[] }>(
+    `/api/sessions/${sessionId}/conversations/${conversationId}/sources`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceIds }),
+    },
+  );
+}
+
+export async function saveMemory(sessionId: string, content: string) {
+  return request<{ content: string }>(`/api/sessions/${sessionId}/memory`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function appendMemory(sessionId: string, content: string) {
+  return request<{ content: string }>(`/api/sessions/${sessionId}/memory`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -84,8 +173,10 @@ export async function deleteSession(sessionId: string): Promise<void> {
   }
 }
 
-export async function getMessages(sessionId: string): Promise<MessageDto[]> {
-  const data = await request<{ messages: MessageDto[] }>(`/api/sessions/${sessionId}/messages`);
+export async function getMessages(sessionId: string, conversationId: string): Promise<MessageDto[]> {
+  const data = await request<{ messages: MessageDto[] }>(
+    `/api/sessions/${sessionId}/conversations/${conversationId}/messages`,
+  );
   return data.messages;
 }
 
@@ -104,10 +195,11 @@ export function sourcePreviewUrl(sourceId: string) {
 
 export async function streamChat(
   sessionId: string,
+  conversationId: string,
   payload: { message: string; mode: ChatMode; model: string; selection?: string; chunkId?: string },
   onEvent: (type: string, data: unknown) => void,
 ) {
-  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/chat`, {
+  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/conversations/${conversationId}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

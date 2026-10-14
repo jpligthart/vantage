@@ -6,16 +6,40 @@ from sqlalchemy.orm import Session
 
 from app.agents.citations import sort_citation_payloads
 from app.agents.chat import stream_chat
-from app.api.schemas import ChatRequest, SessionCreate, SessionSourceAttach
+from app.api.schemas import (
+    ChatRequest,
+    ConversationCreate,
+    ConversationSourcesUpdate,
+    ConversationUpdate,
+    SessionCreate,
+    SessionMemoryAppend,
+    SessionMemoryUpdate,
+    SessionSourceAttach,
+    SessionUpdate,
+)
 from app.core.database import get_db
-from app.models.entities import ChatMode, SourceChunk
+from app.documents.service import source_to_dict
+from app.models.entities import ChatMode, Document, Source, SourceChunk
 from app.sessions.service import (
+    append_session_memory,
     attach_source,
+    conversation_source_ids,
+    create_conversation,
     create_session,
+    delete_conversation,
     delete_session,
+    detach_source,
+    get_conversation_or_404,
     get_messages,
+    get_session_memory,
     get_session_or_404,
+    list_conversations,
     list_sessions,
+    rename_conversation,
+    session_sources,
+    set_conversation_sources,
+    set_session_memory,
+    update_session,
 )
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
@@ -23,9 +47,11 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 def _citation_payload(db: Session, c) -> dict:
     chunk = db.get(SourceChunk, c.chunk_id)
+    source = db.get(Source, c.source_id) if c.source_id else None
     return {
         "chunkId": c.chunk_id,
         "sourceId": c.source_id,
+        "documentName": source.name if source else None,
         "pageNo": c.page_no,
         "sectionTitle": c.section_title,
         "excerpt": c.excerpt,
@@ -35,45 +61,65 @@ def _citation_payload(db: Session, c) -> dict:
     }
 
 
-@router.post("")
-def post_session(body: SessionCreate, db: Session = Depends(get_db)) -> dict:
-    session = create_session(db, body.title, body.preferredModel)
+def _conversation_payload(db: Session, conversation) -> dict:
     return {
+        "id": conversation.id,
+        "title": conversation.title,
+        "updatedAt": conversation.updated_at.isoformat() if conversation.updated_at else None,
+        "sourceIds": conversation_source_ids(db, conversation.id),
+    }
+
+
+def _session_payload(db: Session, session, *, include_sources: bool) -> dict:
+    conversations = list_conversations(db, session.id)
+    payload = {
         "id": session.id,
         "title": session.title,
         "preferredModel": session.preferred_model,
-        "createdAt": session.created_at.isoformat(),
+        "student": session.student,
+        "subject": session.subject,
+        "createdAt": session.created_at.isoformat() if session.created_at else None,
+        "updatedAt": session.updated_at.isoformat() if session.updated_at else None,
+        "memory": get_session_memory(db, session.id) if include_sources else None,
+        "conversations": [_conversation_payload(db, conversation) for conversation in conversations],
     }
+    if include_sources:
+        payload["sources"] = [source_to_dict(source) for source in session_sources(db, session.id)]
+    return payload
+
+
+@router.post("")
+def post_session(body: SessionCreate, db: Session = Depends(get_db)) -> dict:
+    session = create_session(db, body.title, body.preferredModel, body.student, body.subject)
+    return _session_payload(db, session, include_sources=True)
 
 
 @router.get("")
 def get_sessions(db: Session = Depends(get_db)) -> dict:
     sessions = list_sessions(db)
-    return {
-        "sessions": [
-            {
-                "id": s.id,
-                "title": s.title,
-                "preferredModel": s.preferred_model,
-                "updatedAt": s.updated_at.isoformat() if s.updated_at else None,
-            }
-            for s in sessions
-        ]
-    }
+    return {"sessions": [_session_payload(db, session, include_sources=False) for session in sessions]}
 
 
 @router.get("/{session_id}")
 def get_session(session_id: str, db: Session = Depends(get_db)) -> dict:
     session = get_session_or_404(db, session_id)
-    from app.models.entities import SessionSource
+    return _session_payload(db, session, include_sources=True)
 
-    links = db.query(SessionSource).filter(SessionSource.session_id == session.id).all()
-    return {
-        "id": session.id,
-        "title": session.title,
-        "preferredModel": session.preferred_model,
-        "sourceIds": [l.source_id for l in links],
-    }
+
+@router.patch("/{session_id}")
+def patch_session(session_id: str, body: SessionUpdate, db: Session = Depends(get_db)) -> dict:
+    fields = body.model_fields_set
+    session = update_session(
+        db,
+        session_id,
+        title=body.title,
+        preferred_model=body.preferredModel,
+        student=body.student,
+        subject=body.subject,
+        student_set="student" in fields,
+        subject_set="subject" in fields,
+    )
+    return _session_payload(db, session, include_sources=True)
 
 
 @router.post("/{session_id}/sources")
@@ -84,15 +130,80 @@ def post_session_source(
     return {"attached": True}
 
 
+@router.delete("/{session_id}/sources/{source_id}")
+def remove_session_source(session_id: str, source_id: str, db: Session = Depends(get_db)) -> dict:
+    detach_source(db, session_id, source_id)
+    return {"detached": True}
+
+
 @router.delete("/{session_id}")
 def remove_session(session_id: str, db: Session = Depends(get_db)) -> dict:
     delete_session(db, session_id)
     return {"deleted": True}
 
 
-@router.get("/{session_id}/messages")
-def session_messages(session_id: str, db: Session = Depends(get_db)) -> dict:
-    messages = get_messages(db, session_id)
+@router.get("/{session_id}/conversations")
+def get_conversations(session_id: str, db: Session = Depends(get_db)) -> dict:
+    conversations = list_conversations(db, session_id)
+    return {"conversations": [_conversation_payload(db, conversation) for conversation in conversations]}
+
+
+@router.post("/{session_id}/conversations")
+def post_conversation(
+    session_id: str, body: ConversationCreate, db: Session = Depends(get_db)
+) -> dict:
+    conversation = create_conversation(db, session_id, body.title)
+    return _conversation_payload(db, conversation)
+
+
+@router.patch("/{session_id}/conversations/{conversation_id}")
+def patch_conversation(
+    session_id: str,
+    conversation_id: str,
+    body: ConversationUpdate,
+    db: Session = Depends(get_db),
+) -> dict:
+    conversation = rename_conversation(db, session_id, conversation_id, body.title)
+    return _conversation_payload(db, conversation)
+
+
+@router.delete("/{session_id}/conversations/{conversation_id}")
+def remove_conversation(session_id: str, conversation_id: str, db: Session = Depends(get_db)) -> dict:
+    delete_conversation(db, session_id, conversation_id)
+    return {"deleted": True}
+
+
+@router.put("/{session_id}/conversations/{conversation_id}/sources")
+def put_conversation_sources(
+    session_id: str,
+    conversation_id: str,
+    body: ConversationSourcesUpdate,
+    db: Session = Depends(get_db),
+) -> dict:
+    source_ids = set_conversation_sources(db, session_id, conversation_id, body.sourceIds)
+    return {"sourceIds": source_ids}
+
+
+@router.get("/{session_id}/memory")
+def get_memory(session_id: str, db: Session = Depends(get_db)) -> dict:
+    return {"content": get_session_memory(db, session_id)}
+
+
+@router.put("/{session_id}/memory")
+def put_memory(session_id: str, body: SessionMemoryUpdate, db: Session = Depends(get_db)) -> dict:
+    return {"content": set_session_memory(db, session_id, body.content)}
+
+
+@router.post("/{session_id}/memory")
+def post_memory(session_id: str, body: SessionMemoryAppend, db: Session = Depends(get_db)) -> dict:
+    return {"content": append_session_memory(db, session_id, body.content)}
+
+
+@router.get("/{session_id}/conversations/{conversation_id}/messages")
+def conversation_messages(
+    session_id: str, conversation_id: str, db: Session = Depends(get_db)
+) -> dict:
+    messages = get_messages(db, session_id, conversation_id)
     return {
         "messages": [
             {
@@ -111,11 +222,15 @@ def session_messages(session_id: str, db: Session = Depends(get_db)) -> dict:
     }
 
 
-@router.post("/{session_id}/chat")
-async def session_chat(
-    session_id: str, body: ChatRequest, db: Session = Depends(get_db)
+@router.post("/{session_id}/conversations/{conversation_id}/chat")
+async def conversation_chat(
+    session_id: str,
+    conversation_id: str,
+    body: ChatRequest,
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
     session = get_session_or_404(db, session_id)
+    conversation = get_conversation_or_404(db, session_id, conversation_id)
     try:
         mode = ChatMode(body.mode)
     except ValueError:
@@ -123,20 +238,15 @@ async def session_chat(
 
     selection = body.selection
     if body.chunkId and not selection:
-        from app.documents.service import get_source_or_404
-        from app.models.entities import Document, SessionSource, SourceChunk
-
-        link = (
-            db.query(SessionSource).filter(SessionSource.session_id == session_id).first()
-        )
-        if link:
-            chunk = db.get(SourceChunk, body.chunkId)
-            if chunk:
-                selection = chunk.content[:2000]
+        chunk = db.get(SourceChunk, body.chunkId)
+        document = db.get(Document, chunk.document_id) if chunk else None
+        attached = {source.id for source in session_sources(db, session_id)}
+        if chunk and document and document.source_id in attached:
+            selection = chunk.content[:2000]
 
     async def event_generator():
         async for event_type, payload in stream_chat(
-            db, session, body.message, mode, body.model, selection
+            db, session, conversation, body.message, mode, body.model, selection
         ):
             yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
 

@@ -7,13 +7,24 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.documents.processor import process_source
-from app.documents.service import delete_source, get_source_or_404, get_structure, source_to_dict
+from app.documents.service import (
+    delete_source,
+    get_source_or_404,
+    get_structure,
+    list_sources,
+    source_to_dict,
+)
 from app.api.schemas import SourcePaste
 from app.documents.paste import save_pasted_text
 from app.documents.upload import save_upload
 from app.models.entities import Source, SourceStatus, SourceType
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
+
+
+@router.get("")
+def get_sources(db: Session = Depends(get_db)) -> dict:
+    return {"sources": [source_to_dict(source) for source in list_sources(db)]}
 
 
 @router.post("/paste")

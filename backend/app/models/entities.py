@@ -49,6 +49,8 @@ class Source(Base):
         Enum(SourceStatus), default=SourceStatus.queued, nullable=False
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    student: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
     imported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -111,6 +113,8 @@ class AnalysisSession(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     preferred_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    student: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -121,10 +125,17 @@ class AnalysisSession(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    messages: Mapped[list["ConversationMessage"]] = relationship(
+    conversations: Mapped[list["Conversation"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        order_by="Conversation.created_at",
+    )
+    note: Mapped["SessionNote | None"] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        uselist=False,
     )
 
 
@@ -142,18 +153,71 @@ class SessionSource(Base):
     source: Mapped["Source"] = relationship(back_populates="session_links")
 
 
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    session_id: Mapped[str] = mapped_column(ForeignKey("analysis_sessions.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    session: Mapped["AnalysisSession"] = relationship(back_populates="conversations")
+    messages: Mapped[list["ConversationMessage"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    source_pins: Mapped[list["ConversationSource"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class ConversationSource(Base):
+    __tablename__ = "conversation_sources"
+
+    conversation_id: Mapped[str] = mapped_column(
+        ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="source_pins")
+    source: Mapped["Source"] = relationship()
+
+
+class SessionNote(Base):
+    __tablename__ = "session_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("analysis_sessions.id", ondelete="CASCADE"), unique=True
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    session: Mapped["AnalysisSession"] = relationship(back_populates="note")
+
+
 class ConversationMessage(Base):
     __tablename__ = "conversation_messages"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    session_id: Mapped[str] = mapped_column(ForeignKey("analysis_sessions.id", ondelete="CASCADE"))
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"))
     role: Mapped[MessageRole] = mapped_column(Enum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     mode: Mapped[ChatMode | None] = mapped_column(Enum(ChatMode), nullable=True)
     context_strategy: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    session: Mapped["AnalysisSession"] = relationship(back_populates="messages")
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
     citations: Mapped[list["Citation"]] = relationship(
         back_populates="message",
         cascade="all, delete-orphan",
