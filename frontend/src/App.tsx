@@ -5,7 +5,7 @@ import { DocumentChrome } from "./features/documents/DocumentChrome";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
 import { SourceBar } from "./features/documents/SourceBar";
-import { ImportActions } from "./features/import/ImportActions";
+import { NewSessionDialog } from "./features/sessions/NewSessionDialog";
 import { SessionList } from "./features/sessions/SessionList";
 import {
   appendMemory,
@@ -48,6 +48,7 @@ export default function App() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteConversationId, setConfirmDeleteConversationId] = useState<string | null>(null);
   const [library, setLibrary] = useState<SourceDto[]>([]);
+  const [newSessionOpen, setNewSessionOpen] = useState(false);
   const [memory, setMemory] = useState("");
   const memoryDirty = useRef(false);
   const labelsSessionId = useRef<string | null>(null);
@@ -161,12 +162,13 @@ export default function App() {
   async function startWithSource(sourceId: string, sessionTitle: string) {
     const session = await createSession(sessionTitle, model || undefined);
     await attachSource(session.id, sourceId);
+    const src = await getSource(sourceId);
     labelsSessionId.current = null;
     setActiveSessionId(session.id);
     setMessages([]);
     setHighlight(null);
     setSelection(undefined);
-    setStatusText("Document verwerken…");
+    setStatusText(src.status === "ready" || src.status === "failed" ? null : "Document verwerken…");
     await refreshSessions();
   }
 
@@ -185,23 +187,34 @@ export default function App() {
     await refreshSessions();
   }
 
-  async function handleNewFile(file: File) {
+  async function handleNewFile(file: File, sessionName = "") {
     try {
+      setNewSessionOpen(false);
       setStatusText("Uploaden…");
       const { sourceId } = await uploadSource(file);
-      await startWithSource(sourceId, file.name);
+      await startWithSource(sourceId, sessionName.trim() || file.name);
     } catch (error) {
       fail(error, "Uploaden mislukt");
     }
   }
 
-  async function handleNewPaste(text: string, title?: string) {
+  async function handleNewPaste(text: string, title: string | undefined, sessionName = "") {
     try {
+      setNewSessionOpen(false);
       setStatusText("Tekst importeren…");
       const { sourceId } = await pasteSource(text, title);
-      await startWithSource(sourceId, title?.trim() || "Geplakte tekst");
+      await startWithSource(sourceId, sessionName.trim() || title?.trim() || "Geplakte tekst");
     } catch (error) {
       fail(error, "Tekst importeren mislukt");
+    }
+  }
+
+  async function handleNewExisting(source: SourceDto, sessionName: string) {
+    try {
+      setNewSessionOpen(false);
+      await startWithSource(source.id, sessionName.trim() || source.name);
+    } catch (error) {
+      fail(error, "Sessie starten mislukt");
     }
   }
 
@@ -225,8 +238,9 @@ export default function App() {
     }
   }
 
-  function onDrop(e: React.DragEvent) {
+  function onDocumentDrop(e: React.DragEvent) {
     e.preventDefault();
+    e.stopPropagation();
     const file = e.dataTransfer.files[0];
     if (!file) return;
     if (activeSessionId) handleAddFile(file);
@@ -434,7 +448,7 @@ export default function App() {
   const sourceReady = activeSource?.status === "ready";
 
   return (
-    <div className="h-screen flex flex-col" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+    <div className="h-screen flex flex-col">
       <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900">
         <h1 className="font-semibold">Review Assistant</h1>
         <div className="flex items-center gap-2">
@@ -471,12 +485,18 @@ export default function App() {
             onCancelDeleteConversation={() => setConfirmDeleteConversationId(null)}
             onConfirmDeleteConversation={confirmDeleteConversation}
           />
-          <ImportActions
-            heading="Nieuwe sessie"
-            hint="Slepen voegt een bestand toe aan de open sessie."
-            onFile={handleNewFile}
-            onPasteText={handleNewPaste}
-          />
+          <div className="p-2 border-t border-slate-800">
+            <button
+              type="button"
+              className="w-full text-sm px-2 py-1.5 rounded bg-amber-600 hover:bg-amber-500 font-medium"
+              onClick={() => {
+                setNewSessionOpen(true);
+                listSources().then(setLibrary).catch(() => setLibrary([]));
+              }}
+            >
+              Nieuwe sessie
+            </button>
+          </div>
         </aside>
         <ResizableColumns
           storageKey="review-assistant-doc-chat-ratio"
@@ -484,7 +504,11 @@ export default function App() {
           leadingMinPx={240}
           trailingMinPx={300}
           leading={
-            <main className="flex flex-1 flex-col min-h-0 min-w-0 h-full">
+            <main
+              className="flex flex-1 flex-col min-h-0 min-w-0 h-full"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={onDocumentDrop}
+            >
               {statusText && (
                 <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">{statusText}</div>
               )}
@@ -533,7 +557,7 @@ export default function App() {
                       ? activeSource
                         ? "Wacht op document…"
                         : "Voeg een document toe aan deze sessie"
-                      : "Open of importeer een document"}
+                      : "Start een nieuwe sessie links, of sleep een bestand hierheen"}
                   </div>
                 )}
               </div>
@@ -583,6 +607,15 @@ export default function App() {
           }
         />
       </div>
+      {newSessionOpen && (
+        <NewSessionDialog
+          library={library}
+          onClose={() => setNewSessionOpen(false)}
+          onFile={handleNewFile}
+          onPaste={handleNewPaste}
+          onExisting={handleNewExisting}
+        />
+      )}
     </div>
   );
 }
