@@ -43,6 +43,7 @@ from app.sessions.service import (
     set_conversation_sources,
     set_feedback_draft,
     set_session_memory,
+    truncate_messages_from,
     update_session,
 )
 
@@ -249,6 +250,32 @@ def conversation_messages(
     session_id: str, conversation_id: str, db: Session = Depends(get_db)
 ) -> dict:
     messages = get_messages(db, session_id, conversation_id)
+    return {
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role.value,
+                "content": m.content,
+                "mode": m.mode.value if m.mode else None,
+                "contextStrategy": m.context_strategy,
+                "createdAt": m.created_at.isoformat(),
+                "citations": sort_citation_payloads(
+                    [_citation_payload(db, c) for c in m.citations]
+                ),
+            }
+            for m in messages
+        ]
+    }
+
+
+@router.delete("/{session_id}/conversations/{conversation_id}/messages/{message_id}")
+def delete_messages_from(
+    session_id: str,
+    conversation_id: str,
+    message_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    messages = truncate_messages_from(db, session_id, conversation_id, message_id)
     return {
         "messages": [
             {

@@ -309,9 +309,30 @@ def get_messages(db: Session, session_id: str, conversation_id: str) -> list[Con
         db.query(ConversationMessage)
         .options(joinedload(ConversationMessage.citations))
         .filter(ConversationMessage.conversation_id == conversation_id)
-        .order_by(ConversationMessage.created_at.asc())
+        .order_by(ConversationMessage.created_at.asc(), ConversationMessage.id.asc())
         .all()
     )
+
+
+def truncate_messages_from(
+    db: Session, session_id: str, conversation_id: str, message_id: str
+) -> list[ConversationMessage]:
+    conversation = get_conversation_or_404(db, session_id, conversation_id)
+    ordered = (
+        db.query(ConversationMessage)
+        .filter(ConversationMessage.conversation_id == conversation.id)
+        .order_by(ConversationMessage.created_at.asc(), ConversationMessage.id.asc())
+        .all()
+    )
+    cutoff_idx = next((idx for idx, m in enumerate(ordered) if m.id == message_id), None)
+    if cutoff_idx is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+    for msg in ordered[cutoff_idx:]:
+        db.delete(msg)
+    conversation.updated_at = datetime.now(timezone.utc)
+    _touch(conversation.session)
+    db.commit()
+    return get_messages(db, session_id, conversation_id)
 
 
 def delete_session(db: Session, session_id: str) -> None:

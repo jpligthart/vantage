@@ -290,6 +290,18 @@ export async function getMessages(sessionId: string, conversationId: string): Pr
   return data.messages;
 }
 
+export async function truncateMessagesFrom(
+  sessionId: string,
+  conversationId: string,
+  messageId: string,
+): Promise<MessageDto[]> {
+  const data = await request<{ messages: MessageDto[] }>(
+    `/api/sessions/${sessionId}/conversations/${conversationId}/messages/${messageId}`,
+    { method: "DELETE" },
+  );
+  return data.messages;
+}
+
 export async function listModels(): Promise<string[]> {
   const data = await request<{ models: { name: string }[] }>("/api/models");
   return data.models.map((m) => m.name);

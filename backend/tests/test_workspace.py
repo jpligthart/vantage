@@ -3,7 +3,14 @@ from sqlalchemy.orm import sessionmaker
 
 from app.agents.chat import build_multi_document_context
 from app.core.database import Base
-from app.models.entities import Source, SourceChunk, SourceStatus, SourceType
+from app.models.entities import (
+    ConversationMessage,
+    MessageRole,
+    Source,
+    SourceChunk,
+    SourceStatus,
+    SourceType,
+)
 from app.sessions.service import (
     attach_source,
     conversation_source_ids,
@@ -12,6 +19,7 @@ from app.sessions.service import (
     list_conversations,
     session_sources,
     set_conversation_sources,
+    truncate_messages_from,
     update_session,
 )
 
@@ -158,3 +166,26 @@ def test_reference_sources_get_r_markers_and_header():
     assert "[R1C1]" in text
     assert index_map["R1C1"].source_id == ref_src.id
     assert sizes[1]["isReference"] is True
+
+
+def test_truncate_messages_from_removes_target_and_following():
+    db = _db()
+    session = create_session(db, "Casus")
+    conversation = list_conversations(db, session.id)[0]
+    m1 = ConversationMessage(
+        conversation_id=conversation.id, role=MessageRole.user, content="vraag 1"
+    )
+    m2 = ConversationMessage(
+        conversation_id=conversation.id, role=MessageRole.assistant, content="antwoord 1"
+    )
+    m3 = ConversationMessage(
+        conversation_id=conversation.id, role=MessageRole.user, content="vraag 2"
+    )
+    m4 = ConversationMessage(
+        conversation_id=conversation.id, role=MessageRole.assistant, content="antwoord 2"
+    )
+    db.add_all([m1, m2, m3, m4])
+    db.commit()
+
+    remaining = truncate_messages_from(db, session.id, conversation.id, m3.id)
+    assert [m.content for m in remaining] == ["vraag 1", "antwoord 1"]

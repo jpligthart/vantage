@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Brain, ChevronDown, ChevronRight, FileCheck2, MessageSquare } from "lucide-react";
 import type { ChatMode, CitationDto, MessageDto, SourceDto } from "../../types/domain";
-import { getMessages, streamChat } from "../../services/api";
+import { getMessages, streamChat, truncateMessagesFrom } from "../../services/api";
 import { cn } from "../../lib/utils";
 import { ChatMessage } from "./ChatMessage";
 
@@ -172,8 +172,8 @@ export function ChatPanel({
   }, [conversationId]);
   const canSend = canType && input.trim().length > 0;
 
-  async function send() {
-    if (!sessionId || !conversationId || !model || !input.trim()) return;
+  async function runStream(userText: string, baseMessages: MessageDto[]) {
+    if (!sessionId || !conversationId || !model || !userText.trim()) return;
     const sessionAtSend = sessionId;
     const convAtSend = conversationId;
     const modeAtSend = mode;
@@ -184,8 +184,6 @@ export function ChatPanel({
       pendingCitations: [],
       mode: modeAtSend,
     }));
-    const userText = input.trim();
-    setInput("");
     const userMsg: MessageDto = {
       id: `temp-${Date.now()}`,
       role: "user",
@@ -195,7 +193,7 @@ export function ChatPanel({
       citations: [],
     };
     stickToBottomRef.current = true;
-    onMessagesChange([...messages, userMsg]);
+    onMessagesChange([...baseMessages, userMsg]);
 
     try {
       await streamChat(
@@ -263,6 +261,38 @@ export function ChatPanel({
           streaming: "",
           pendingCitations: [],
         }));
+      }
+    }
+  }
+
+  async function send() {
+    if (!canType || !input.trim()) return;
+    const userText = input.trim();
+    setInput("");
+    await runStream(userText, messages);
+  }
+
+  async function replayFromUserMessage(targetUserMsg: MessageDto, newContent?: string) {
+    if (!sessionId || !conversationId || !model || !sourceReady || busy) return;
+    const textToSend = (newContent ?? targetUserMsg.content).trim();
+    if (!textToSend) return;
+    try {
+      const remaining = await truncateMessagesFrom(sessionId, conversationId, targetUserMsg.id);
+      await runStream(textToSend, remaining);
+    } catch (e) {
+      patchStream(conversationId, () => ({
+        error: e instanceof Error ? e.message : "Bericht opnieuw versturen mislukt",
+      }));
+    }
+  }
+
+  async function retryAssistantMessage(assistantMsg: MessageDto) {
+    const idx = messages.findIndex((m) => m.id === assistantMsg.id);
+    if (idx <= 0) return;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        await replayFromUserMessage(messages[i]);
+        return;
       }
     }
   }
@@ -448,9 +478,16 @@ export function ChatPanel({
           <ChatMessage
             key={m.id}
             message={m}
+            disabled={!canType}
             onCitationClick={onCitationClick}
             onRemember={m.role === "assistant" ? onRemember : undefined}
             onAddToFeedback={m.role === "assistant" ? onAddToFeedback : undefined}
+            onRetry={
+              m.role === "user"
+                ? () => replayFromUserMessage(m)
+                : () => retryAssistantMessage(m)
+            }
+            onEdit={m.role === "user" ? (next) => replayFromUserMessage(m, next) : undefined}
           />
         ))}
         {error && <p className="text-red-400 text-sm whitespace-pre-wrap">{error}</p>}
