@@ -22,7 +22,8 @@ RUN pip install -e /app/backend
 
 RUN useradd -m -u 1000 appuser \
     && mkdir -p /app/data/model-cache/huggingface \
-    && chown -R appuser:appuser /app
+    && mkdir -p /usr/local/lib/python3.12/site-packages/rapidocr/models \
+    && chown -R appuser:appuser /app /usr/local/lib/python3.12/site-packages/rapidocr/models
 USER appuser
 WORKDIR /app/backend
 

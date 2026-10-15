@@ -3,7 +3,9 @@ import logging
 import uuid
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types.doc import DoclingDocument
 from sqlalchemy.orm import Session
 
@@ -165,7 +167,12 @@ def process_source(db: Session, source_id: str) -> None:
             logger.info("Processed text source %s", source_id)
             return
 
-        converter = DocumentConverter()
+        pipeline_options = PdfPipelineOptions(do_ocr=False)
+        converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
+            }
+        )
         result = converter.convert(str(path))
         dl_doc: DoclingDocument = result.document
 
