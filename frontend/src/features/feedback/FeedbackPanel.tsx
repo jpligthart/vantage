@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, FileCheck2, FileEdit, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
+import { Check, Copy, Eye, FileCheck2, FileEdit, Loader2, Pencil, RotateCcw, Sparkles, Wand2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { CitationDto, FeedbackAction, SourceDto } from "../../types/domain";
 import { streamFeedback } from "../../services/api";
 import { citationTooltip, formatCitationLabel, sortCitations } from "../../lib/citations";
@@ -38,6 +40,7 @@ export function FeedbackPanel({
   const [contextLabel, setContextLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
 
   // Keep selectedSourceIds in sync when session sources change (default: all attached sources selected)
   useEffect(() => {
@@ -84,6 +87,7 @@ export function FeedbackPanel({
     const snapshotBefore = draft;
     setPreviousDraft(snapshotBefore);
     setBusyAction(action);
+    setViewMode("preview");
     setError(null);
     setCitations([]);
 
@@ -279,6 +283,38 @@ export function FeedbackPanel({
           </button>
 
           <div className="flex items-center gap-1.5 ml-auto">
+            {draft.trim() && (
+              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-md border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("preview")}
+                  title="Bekijk de feedback opgemaakt (Markdown)"
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors",
+                    viewMode === "preview"
+                      ? "bg-amber-600 text-white font-medium"
+                      : "text-slate-400 hover:text-slate-200",
+                  )}
+                >
+                  <Eye className="w-3 h-3" aria-hidden />
+                  Weergave
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("edit")}
+                  title="Bewerk de ruwe tekst of steekwoorden"
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded transition-colors",
+                    viewMode === "edit"
+                      ? "bg-amber-600 text-white font-medium"
+                      : "text-slate-400 hover:text-slate-200",
+                  )}
+                >
+                  <Pencil className="w-3 h-3" aria-hidden />
+                  Bewerken
+                </button>
+              </div>
+            )}
             {previousDraft !== null && !busyAction && (
               <button
                 type="button"
@@ -349,20 +385,32 @@ export function FeedbackPanel({
           </div>
         )}
 
-        <textarea
-          className="flex-1 w-full bg-slate-900/90 border border-slate-700/80 focus:border-amber-500/60 rounded-lg p-3 text-sm text-slate-100 leading-relaxed outline-none resize-none font-sans"
-          placeholder={
-            "Schrijf hier je eigen steekwoorden of conceptfeedback, of klik op 'Feedback opstellen'.\n\n" +
-            "Voorbeeld steekwoorden voor 'Steekwoorden aanvullen':\n" +
-            "- Probleemstelling is nog te breed geformuleerd\n" +
-            "- Architectuurkeuze goed onderbouwd, maar security-aspecten ontbreken\n" +
-            "- Vraag student hoe de testresultaten terugkoppelen naar de ontwerpkeuzes"
-          }
-          value={draft}
-          disabled={!sessionId || Boolean(busyAction)}
-          onChange={(e) => onDraftChange(e.target.value)}
-          onBlur={() => onSaveDraft()}
-        />
+        {viewMode === "preview" && draft.trim() ? (
+          <div
+            onDoubleClick={() => {
+              if (!busyAction) setViewMode("edit");
+            }}
+            title="Dubbelklik om de tekst te bewerken"
+            className="flex-1 w-full overflow-y-auto bg-slate-900/90 border border-slate-700/80 rounded-lg p-3.5 text-sm text-slate-100 chat-md"
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{draft}</ReactMarkdown>
+          </div>
+        ) : (
+          <textarea
+            className="flex-1 w-full bg-slate-900/90 border border-slate-700/80 focus:border-amber-500/60 rounded-lg p-3 text-sm text-slate-100 leading-relaxed outline-none resize-none font-sans"
+            placeholder={
+              "Schrijf hier je eigen steekwoorden of conceptfeedback, of klik op 'Feedback opstellen'.\n\n" +
+              "Voorbeeld steekwoorden voor 'Steekwoorden aanvullen':\n" +
+              "- Probleemstelling is nog te breed geformuleerd\n" +
+              "- Architectuurkeuze goed onderbouwd, maar security-aspecten ontbreken\n" +
+              "- Vraag student hoe de testresultaten terugkoppelen naar de ontwerpkeuzes"
+            }
+            value={draft}
+            disabled={!sessionId || Boolean(busyAction)}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onBlur={() => onSaveDraft()}
+          />
+        )}
 
         {citations.length > 0 && (
           <div className="border-t border-slate-800/80 pt-2 shrink-0">

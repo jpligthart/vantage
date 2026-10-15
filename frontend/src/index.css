@@ -47,10 +47,16 @@ body {
   margin: 0.4rem 0;
 }
 
-.chat-md ul,
+.chat-md ul {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+  list-style-type: disc;
+}
+
 .chat-md ol {
   margin: 0.4rem 0;
   padding-left: 1.25rem;
+  list-style-type: decimal;
 }
 
 .chat-md li {
