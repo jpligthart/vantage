@@ -269,14 +269,24 @@ export function ChatPanel({
 
   const displayMessages = [...messages];
   if (busy || streaming) {
-    displayMessages.push({
-      id: "streaming",
-      role: "assistant",
-      content: streaming,
-      mode: currentStream.mode,
-      createdAt: new Date().toISOString(),
-      citations: pendingCitations,
-    });
+    const last = displayMessages[displayMessages.length - 1];
+    if (busy && last?.role === "assistant") {
+      displayMessages[displayMessages.length - 1] = {
+        ...last,
+        id: "streaming",
+        content: streaming || last.content,
+        citations: pendingCitations.length > 0 ? pendingCitations : last.citations,
+      };
+    } else {
+      displayMessages.push({
+        id: "streaming",
+        role: "assistant",
+        content: streaming,
+        mode: currentStream.mode,
+        createdAt: new Date().toISOString(),
+        citations: pendingCitations,
+      });
+    }
   }
 
   const activeMode = MODES.find((m) => m.id === mode) ?? MODES[2];

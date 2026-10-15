@@ -244,6 +244,70 @@ async def stream_chat(
 
     full_response = ""
     stream_filter = CitationStreamFilter()
+    first_source = documents[0][0]
+    assistant: ConversationMessage | None = None
+
+    def _persist_progress() -> None:
+        nonlocal assistant
+        display_text = strip_markers_from_stream(full_response)
+        if not display_text.strip():
+            return
+        if assistant is None:
+            assistant = ConversationMessage(
+                conversation_id=conversation.id,
+                role=MessageRole.assistant,
+                content=display_text,
+                mode=mode,
+                context_strategy="full_document",
+            )
+            db.add(assistant)
+            db.flush()
+        else:
+            assistant.content = display_text
+        db.commit()
+
+    def _finalize_assistant() -> list:
+        nonlocal assistant
+        display_text = strip_markers_from_stream(full_response)
+        if not display_text.strip():
+            return []
+        citation_items = build_citation_items(
+            full_response,
+            index_map,
+            first_source.id,
+            first_source.name,
+            chunk_bbox,
+        )
+        if assistant is None:
+            assistant = ConversationMessage(
+                conversation_id=conversation.id,
+                role=MessageRole.assistant,
+                content=display_text,
+                mode=mode,
+                context_strategy="full_document",
+            )
+            db.add(assistant)
+            db.flush()
+        else:
+            assistant.content = display_text
+            db.query(Citation).filter(Citation.message_id == assistant.id).delete()
+
+        for item in citation_items:
+            db.add(
+                Citation(
+                    message_id=assistant.id,
+                    source_id=item.source_id,
+                    chunk_id=item.chunk_id,
+                    page_no=item.page_no,
+                    section_title=item.section_title,
+                    excerpt=item.excerpt,
+                    bbox_json=json.dumps(item.bbox) if item.bbox else None,
+                )
+            )
+        db.commit()
+        return citation_items
+
+    last_saved_len = 0
 
     try:
         provider = OpenAIProvider(base_url=settings.ollama_base_url, api_key="ollama")
@@ -255,57 +319,36 @@ async def stream_chat(
                 full_response += text
                 cleaned = stream_filter.feed(text)
                 if cleaned:
+                    if assistant is None or len(full_response) - last_saved_len >= 120:
+                        _persist_progress()
+                        last_saved_len = len(full_response)
                     yield ("token", {"text": cleaned})
         tail = stream_filter.flush()
         if tail:
             yield ("token", {"text": tail})
-    except httpx.HTTPError as exc:
-        logger.exception("Ollama unavailable")
-        yield (
-            "error",
-            {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
-        )
-        return
-    except Exception as exc:
-        logger.exception("Chat failed")
-        yield ("error", {"code": "chat_failed", "message": str(exc)[:500]})
-        return
-
-    from app.agents.citations import strip_markers_from_stream
-
-    first_source = documents[0][0]
-    citation_items = build_citation_items(
-        full_response,
-        index_map,
-        first_source.id,
-        first_source.name,
-        chunk_bbox,
-    )
-    display_text = strip_markers_from_stream(full_response)
-
-    assistant = ConversationMessage(
-        conversation_id=conversation.id,
-        role=MessageRole.assistant,
-        content=display_text,
-        mode=mode,
-        context_strategy="full_document",
-    )
-    db.add(assistant)
-    db.flush()
-
-    for item in citation_items:
-        db.add(
-            Citation(
-                message_id=assistant.id,
-                source_id=item.source_id,
-                chunk_id=item.chunk_id,
-                page_no=item.page_no,
-                section_title=item.section_title,
-                excerpt=item.excerpt,
-                bbox_json=json.dumps(item.bbox) if item.bbox else None,
+    except (GeneratorExit, BaseException) as exc:
+        if full_response.strip():
+            try:
+                _finalize_assistant()
+            except Exception:
+                logger.exception("Failed to save partial assistant response")
+        if isinstance(exc, httpx.HTTPError):
+            logger.exception("Ollama unavailable")
+            yield (
+                "error",
+                {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
             )
-        )
-    db.commit()
+            return
+        if isinstance(exc, Exception):
+            logger.exception("Chat failed")
+            yield ("error", {"code": "chat_failed", "message": str(exc)[:500]})
+            return
+        raise
+
+    citation_items = _finalize_assistant()
+    if assistant is None:
+        yield ("done", {"messageId": None})
+        return
 
     yield (
         "citations",
@@ -432,6 +475,13 @@ async def stream_feedback(
 
     full_response = ""
     stream_filter = CitationStreamFilter()
+    last_saved_len = 0
+
+    def _save_feedback_progress() -> str:
+        display_text = strip_markers_from_stream(full_response).strip()
+        if display_text:
+            set_feedback_draft(db, session.id, display_text)
+        return display_text
 
     try:
         provider = OpenAIProvider(base_url=settings.ollama_base_url, api_key="ollama")
@@ -443,21 +493,31 @@ async def stream_feedback(
                 full_response += text
                 cleaned = stream_filter.feed(text)
                 if cleaned:
+                    if last_saved_len == 0 or len(full_response) - last_saved_len >= 120:
+                        _save_feedback_progress()
+                        last_saved_len = len(full_response)
                     yield ("token", {"text": cleaned})
         tail = stream_filter.flush()
         if tail:
             yield ("token", {"text": tail})
-    except httpx.HTTPError as exc:
-        logger.exception("Ollama unavailable")
-        yield (
-            "error",
-            {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
-        )
-        return
-    except Exception as exc:
-        logger.exception("Feedback generation failed")
-        yield ("error", {"code": "feedback_failed", "message": str(exc)[:500]})
-        return
+    except (GeneratorExit, BaseException) as exc:
+        if full_response.strip():
+            try:
+                _save_feedback_progress()
+            except Exception:
+                logger.exception("Failed to save partial feedback draft")
+        if isinstance(exc, httpx.HTTPError):
+            logger.exception("Ollama unavailable")
+            yield (
+                "error",
+                {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
+            )
+            return
+        if isinstance(exc, Exception):
+            logger.exception("Feedback generation failed")
+            yield ("error", {"code": "feedback_failed", "message": str(exc)[:500]})
+            return
+        raise
 
     first_source = documents[0][0]
     citation_items = build_citation_items(
@@ -467,8 +527,7 @@ async def stream_feedback(
         first_source.name,
         chunk_bbox,
     )
-    display_text = strip_markers_from_stream(full_response).strip()
-    set_feedback_draft(db, session.id, display_text)
+    display_text = _save_feedback_progress()
 
     yield (
         "citations",
