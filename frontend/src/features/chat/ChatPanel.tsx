@@ -425,7 +425,7 @@ export function ChatPanel({
                     />
                     <span className="truncate">{source.name}</span>
                     {source.isReference && (
-                      <span className="text-[10px] opacity-80 shrink-0">(Kader)</span>
+                      <span className="text-[10px] opacity-80 shrink-0">(Referentie)</span>
                     )}
                   </button>
                 );

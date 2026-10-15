@@ -601,10 +601,10 @@ export default function App() {
               setReferenceLibraryOpen(true);
             }}
             className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
-            title="Beheer vaste referentiekaders (zoals HBO-i of beleid) die standaard in elke nieuwe sessie klaarstaan"
+            title="Beheer vaste referentie- en contextdocumenten (zoals HBO-i of beleid) die standaard in elke nieuwe sessie klaarstaan"
           >
             <BookMarked className="w-3.5 h-3.5 text-amber-400" aria-hidden />
-            <span>Vaste kaders</span>
+            <span>Vaste context</span>
             {library.filter((s) => s.isDefault).length > 0 && (
               <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-semibold">
                 {library.filter((s) => s.isDefault).length}

@@ -115,8 +115,8 @@ export function SourceBar({
                   onClick={() => onToggleReference(source.id, !isRef)}
                   title={
                     isRef
-                      ? "Gemarkeerd als referentiekader (bijv. leerdoelen / HBO-i / beleid). Klik om weer als studentenwerk te markeren."
-                      : "Markeer als kader / richtlijn (bijv. leerdoelen, HBO-i, beleidsinfo)"
+                      ? "Dit document dient als referentie/context (bijv. HBO-i, beleid, opdracht). De AI weet dat dit géén tekst van de student is. Klik om als studentenwerk te behandelen."
+                      : "Markeer als referentie/context (bijv. HBO-i, beleidsdocument, opdrachtomschrijving) zodat de AI dit niet aanziet voor werk van de student."
                   }
                   className={`px-1.5 py-0.5 my-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 inline-flex items-center gap-1 ${
                     isRef
@@ -125,7 +125,7 @@ export function SourceBar({
                   }`}
                 >
                   {source.isDefault && <Pin className="w-2.5 h-2.5 text-amber-300" aria-hidden />}
-                  Kader
+                  Referentie
                 </button>
                 <button
                   type="button"
@@ -202,7 +202,7 @@ export function SourceBar({
                             <span className="truncate">{source.name}</span>
                             {source.isReference && (
                               <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/50 text-sky-200">
-                                Kader
+                                Referentie
                               </span>
                             )}
                           </button>

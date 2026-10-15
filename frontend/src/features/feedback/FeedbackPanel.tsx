@@ -195,11 +195,11 @@ export function FeedbackPanel({
 
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium mr-0.5">
-              Kaders & richtlijnen:
+              Referentie & context:
             </span>
             {referenceSources.length === 0 ? (
               <span className="text-[11px] text-slate-500">
-                Geen (puur LLM) — klik op <strong className="text-slate-400 font-normal">Kader</strong> op een brontab om bijv. HBO-i of leerdoelen als richtlijn mee te nemen
+                Geen (puur LLM) — klik op <strong className="text-slate-400 font-normal">Referentie</strong> op een brontab om bijv. HBO-i of beleid als context mee te nemen
               </span>
             ) : (
               referenceSources.map((source) => {
