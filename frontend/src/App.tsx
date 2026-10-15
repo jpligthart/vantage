@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileEdit, MessageSquare } from "lucide-react";
+import { BookMarked, FileEdit, MessageSquare } from "lucide-react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
+import { ReferenceLibraryModal } from "./features/documents/ReferenceLibraryModal";
 import { SourceBar } from "./features/documents/SourceBar";
 import { FeedbackPanel } from "./features/feedback/FeedbackPanel";
 import { NewSessionDialog } from "./features/sessions/NewSessionDialog";
@@ -16,6 +17,7 @@ import {
   createSession,
   deleteConversation,
   deleteSession,
+  deleteSource,
   detachSource,
   getMessages,
   getSession,
@@ -53,6 +55,7 @@ export default function App() {
   const [confirmDeleteConversationId, setConfirmDeleteConversationId] = useState<string | null>(null);
   const [library, setLibrary] = useState<SourceDto[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [referenceLibraryOpen, setReferenceLibraryOpen] = useState(false);
   const [rightTab, setRightTab] = useState<"chat" | "feedback">("chat");
   const [memory, setMemory] = useState("");
   const [feedbackDraft, setFeedbackDraft] = useState("");
@@ -91,7 +94,8 @@ export default function App() {
           return prefer.sourceId;
         }
         if (current && next.sources.some((source) => source.id === current)) return current;
-        return next.sources[0]?.id ?? null;
+        const firstStudent = next.sources.find((source) => !source.isReference);
+        return firstStudent?.id ?? next.sources[0]?.id ?? null;
       });
       if (!memoryDirty.current) setMemory(next.memory ?? "");
       if (!feedbackDirty.current) setFeedbackDraft(next.feedbackDraft ?? "");
@@ -107,6 +111,7 @@ export default function App() {
   useEffect(() => {
     refreshSessions();
     listModels().then(setModels).catch(() => setModels([]));
+    listSources().then(setLibrary).catch(() => setLibrary([]));
   }, [refreshSessions]);
 
   useEffect(() => {
@@ -172,6 +177,7 @@ export default function App() {
     await attachSource(session.id, sourceId);
     const src = await getSource(sourceId);
     labelsSessionId.current = null;
+    setActiveSourceId(sourceId);
     setActiveSessionId(session.id);
     setActiveConversationId(null);
     setMessages([]);
@@ -388,15 +394,85 @@ export default function App() {
         current
           ? {
               ...current,
-              sources: current.sources.map((s) => (s.id === sourceId ? { ...s, isReference: updated.isReference } : s)),
+              sources: current.sources.map((s) =>
+                s.id === sourceId ? { ...s, isReference: updated.isReference, isDefault: updated.isDefault } : s,
+              ),
             }
           : current,
       );
       setLibrary((current) =>
-        current.map((s) => (s.id === sourceId ? { ...s, isReference: updated.isReference } : s)),
+        current.map((s) =>
+          s.id === sourceId ? { ...s, isReference: updated.isReference, isDefault: updated.isDefault } : s,
+        ),
       );
     } catch (error) {
       fail(error, "Bron bijwerken mislukt");
+    }
+  }
+
+  async function handleToggleDefault(sourceId: string, isDefault: boolean) {
+    try {
+      const updated = await updateSource(sourceId, { isDefault });
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              sources: current.sources.map((s) =>
+                s.id === sourceId ? { ...s, isDefault: updated.isDefault, isReference: updated.isReference } : s,
+              ),
+            }
+          : current,
+      );
+      setLibrary((current) =>
+        current.map((s) =>
+          s.id === sourceId ? { ...s, isDefault: updated.isDefault, isReference: updated.isReference } : s,
+        ),
+      );
+    } catch (error) {
+      fail(error, "Standaardstatus bijwerken mislukt");
+    }
+  }
+
+  async function handleUploadDefault(file: File) {
+    try {
+      setStatusText("Standaardkader uploaden…");
+      const { sourceId } = await uploadSource(file, { isReference: true, isDefault: true });
+      if (activeSessionId) {
+        await attachSource(activeSessionId, sourceId);
+        await loadDetail(activeSessionId, { conversationId: activeConversationId, sourceId: activeSourceId });
+      }
+      setLibrary(await listSources());
+      setStatusText(null);
+    } catch (error) {
+      fail(error, "Uploaden mislukt");
+    }
+  }
+
+  async function handlePasteDefault(text: string, title?: string) {
+    try {
+      setStatusText("Standaardkader opslaan…");
+      const { sourceId } = await pasteSource(text, title, { isReference: true, isDefault: true });
+      if (activeSessionId) {
+        await attachSource(activeSessionId, sourceId);
+        await loadDetail(activeSessionId, { conversationId: activeConversationId, sourceId: activeSourceId });
+      }
+      setLibrary(await listSources());
+      setStatusText(null);
+    } catch (error) {
+      fail(error, "Opslaan mislukt");
+    }
+  }
+
+  async function handleDeleteLibrarySource(sourceId: string) {
+    try {
+      await deleteSource(sourceId);
+      setLibrary((current) => current.filter((s) => s.id !== sourceId));
+      if (activeSessionId && sources.some((s) => s.id === sourceId)) {
+        if (activeSourceId === sourceId) setActiveSourceId(null);
+        await loadDetail(activeSessionId, { conversationId: activeConversationId });
+      }
+    } catch (error) {
+      fail(error, "Bron verwijderen mislukt");
     }
   }
 
@@ -517,18 +593,37 @@ export default function App() {
     <div className="h-screen flex flex-col bg-slate-950 text-slate-100">
       <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900 shrink-0">
         <h1 className="font-semibold text-sm tracking-tight text-slate-100">Review Assistant</h1>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-400">Model</label>
-          <select
-            className="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-amber-500/60"
-            value={model || ""}
-            onChange={(e) => onModelChange(e.target.value)}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              listSources().then(setLibrary).catch(() => setLibrary([]));
+              setReferenceLibraryOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+            title="Beheer vaste referentiekaders (zoals HBO-i of beleid) die standaard in elke nieuwe sessie klaarstaan"
           >
-            <option value="">— kies model —</option>
-            {models.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+            <BookMarked className="w-3.5 h-3.5 text-amber-400" aria-hidden />
+            <span>Vaste kaders</span>
+            {library.filter((s) => s.isDefault).length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-semibold">
+                {library.filter((s) => s.isDefault).length}
+              </span>
+            )}
+          </button>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-400">Model</label>
+            <select
+              className="bg-slate-800 border border-slate-700 rounded-md px-2.5 py-1 text-xs text-slate-200 outline-none focus:border-amber-500/60"
+              value={model || ""}
+              onChange={(e) => onModelChange(e.target.value)}
+            >
+              <option value="">— kies model —</option>
+              {models.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
@@ -734,6 +829,20 @@ export default function App() {
           onFile={handleNewFile}
           onPaste={handleNewPaste}
           onExisting={handleNewExisting}
+        />
+      )}
+      {referenceLibraryOpen && (
+        <ReferenceLibraryModal
+          sources={library}
+          activeSessionSourceIds={sources.map((s) => s.id)}
+          hasActiveSession={Boolean(activeSessionId)}
+          onClose={() => setReferenceLibraryOpen(false)}
+          onUploadDefault={handleUploadDefault}
+          onPasteDefault={handlePasteDefault}
+          onToggleDefault={handleToggleDefault}
+          onToggleReference={handleToggleReference}
+          onAttachToCurrentSession={addSourceToSession}
+          onDeleteSource={handleDeleteLibrarySource}
         />
       )}
     </div>

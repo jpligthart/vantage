@@ -53,6 +53,7 @@ export interface SourceDto {
   status: "queued" | "processing" | "ready" | "failed";
   error?: string | null;
   isReference?: boolean;
+  isDefault?: boolean;
   student?: string | null;
   subject?: string | null;
 }

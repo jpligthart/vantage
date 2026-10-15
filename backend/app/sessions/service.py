@@ -51,6 +51,14 @@ def create_session(
     db.add(session)
     db.flush()
     db.add(Conversation(session_id=session.id, title="Gesprek 1"))
+    default_sources = (
+        db.query(Source)
+        .filter(Source.is_default.is_(True))
+        .order_by(Source.imported_at.asc(), Source.name.asc())
+        .all()
+    )
+    for source in default_sources:
+        db.add(SessionSource(session_id=session.id, source_id=source.id))
     db.commit()
     db.refresh(session)
     return session
@@ -75,12 +83,14 @@ def session_sources(db: Session, session_id: str) -> list[Source]:
         db.query(Source)
         .join(SessionSource, SessionSource.source_id == Source.id)
         .filter(SessionSource.session_id == session_id)
-        .order_by(Source.imported_at.asc(), Source.name.asc())
+        .order_by(Source.is_reference.asc(), Source.imported_at.asc(), Source.name.asc())
         .all()
     )
 
 
 def _stamp_source_labels(session: AnalysisSession, source: Source) -> None:
+    if source.is_reference or source.is_default:
+        return
     if session.student and not source.student:
         source.student = session.student
     if session.subject and not source.subject:

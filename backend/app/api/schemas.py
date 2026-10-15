@@ -43,10 +43,12 @@ class SourcePaste(BaseModel):
     text: str = Field(min_length=1)
     title: str | None = Field(default=None, max_length=512)
     isReference: bool = False
+    isDefault: bool = False
 
 
 class SourceUpdate(BaseModel):
     isReference: bool | None = None
+    isDefault: bool | None = None
     name: str | None = Field(default=None, min_length=1, max_length=512)
 
 

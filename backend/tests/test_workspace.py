@@ -189,3 +189,21 @@ def test_truncate_messages_from_removes_target_and_following():
 
     remaining = truncate_messages_from(db, session.id, conversation.id, m3.id)
     assert [m.content for m in remaining] == ["vraag 1", "antwoord 1"]
+
+
+def test_default_sources_auto_attached_to_new_sessions():
+    db = _db()
+    hboi = _source("hbo-i.pdf")
+    hboi.is_reference = True
+    hboi.is_default = True
+    other = _source("oud-verslag.pdf")
+    db.add_all([hboi, other])
+    db.commit()
+
+    session = create_session(db, "Nieuwe student", student="Pieter", subject="Stage")
+    attached = session_sources(db, session.id)
+    assert [s.name for s in attached] == ["hbo-i.pdf"]
+    db.refresh(hboi)
+    assert hboi.student is None
+    assert hboi.subject is None
+

@@ -42,7 +42,8 @@ async def paste_source(
         storage_path=dest,
         checksum=checksum,
         status=SourceStatus.queued,
-        is_reference=body.isReference,
+        is_reference=body.isReference or body.isDefault,
+        is_default=body.isDefault,
     )
     db.add(source)
     db.commit()
@@ -55,6 +56,7 @@ async def upload_source(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     is_reference: bool = False,
+    is_default: bool = False,
     db: Session = Depends(get_db),
 ) -> dict:
     settings = get_settings()
@@ -66,7 +68,8 @@ async def upload_source(
         storage_path=str(dest),
         checksum=checksum,
         status=SourceStatus.queued,
-        is_reference=is_reference,
+        is_reference=is_reference or is_default,
+        is_default=is_default,
     )
     db.add(source)
     db.commit()
@@ -92,6 +95,10 @@ def get_source(source_id: str, db: Session = Depends(get_db)) -> dict:
 @router.patch("/{source_id}")
 def patch_source(source_id: str, body: SourceUpdate, db: Session = Depends(get_db)) -> dict:
     source = get_source_or_404(db, source_id)
+    if body.isDefault is not None:
+        source.is_default = body.isDefault
+        if body.isDefault and body.isReference is None:
+            source.is_reference = True
     if body.isReference is not None:
         source.is_reference = body.isReference
     if body.name is not None and body.name.strip():

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, FileText, FolderOpen, Plus, X } from "lucide-react";
+import { BookOpen, FileText, FolderOpen, Pin, Plus, X } from "lucide-react";
 import { ImportActions } from "../import/ImportActions";
 import type { SourceDto } from "../../types/domain";
 
@@ -118,12 +118,13 @@ export function SourceBar({
                       ? "Gemarkeerd als referentiekader (bijv. leerdoelen / HBO-i / beleid). Klik om weer als studentenwerk te markeren."
                       : "Markeer als kader / richtlijn (bijv. leerdoelen, HBO-i, beleidsinfo)"
                   }
-                  className={`px-1.5 py-0.5 my-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 ${
+                  className={`px-1.5 py-0.5 my-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 inline-flex items-center gap-1 ${
                     isRef
                       ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
                       : "border-transparent text-slate-500 opacity-0 group-hover:opacity-100 hover:border-slate-700 hover:text-slate-300"
                   }`}
                 >
+                  {source.isDefault && <Pin className="w-2.5 h-2.5 text-amber-300" aria-hidden />}
                   Kader
                 </button>
                 <button

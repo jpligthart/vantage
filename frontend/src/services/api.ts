@@ -18,18 +18,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function pasteSource(text: string, title?: string): Promise<{ sourceId: string }> {
+export async function pasteSource(
+  text: string,
+  title?: string,
+  options?: { isReference?: boolean; isDefault?: boolean },
+): Promise<{ sourceId: string }> {
   return request("/api/sources/paste", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, title }),
+    body: JSON.stringify({
+      text,
+      title,
+      isReference: options?.isReference ?? false,
+      isDefault: options?.isDefault ?? false,
+    }),
   });
 }
 
-export async function uploadSource(file: File): Promise<{ sourceId: string }> {
+export async function uploadSource(
+  file: File,
+  options?: { isReference?: boolean; isDefault?: boolean },
+): Promise<{ sourceId: string }> {
   const form = new FormData();
   form.append("file", file);
-  return request("/api/sources/upload", { method: "POST", body: form });
+  const params = new URLSearchParams();
+  if (options?.isReference) params.set("is_reference", "true");
+  if (options?.isDefault) params.set("is_default", "true");
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return request(`/api/sources/upload${query}`, { method: "POST", body: form });
 }
 
 export async function getSourceStatus(sourceId: string) {
@@ -44,6 +60,7 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
     status: string;
     error?: string;
     isReference?: boolean;
+    isDefault?: boolean;
     student?: string | null;
     subject?: string | null;
   }>(`/api/sources/${sourceId}`);
@@ -54,6 +71,7 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
     status: data.status as SourceDto["status"],
     error: data.error,
     isReference: data.isReference ?? false,
+    isDefault: data.isDefault ?? false,
     student: data.student,
     subject: data.subject,
   };
@@ -61,13 +79,17 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
 
 export async function updateSource(
   sourceId: string,
-  patch: { isReference?: boolean; name?: string },
+  patch: { isReference?: boolean; isDefault?: boolean; name?: string },
 ): Promise<SourceDto> {
   return request<SourceDto>(`/api/sources/${sourceId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
+}
+
+export async function deleteSource(sourceId: string): Promise<void> {
+  await request(`/api/sources/${sourceId}`, { method: "DELETE" });
 }
 
 export async function listSources(): Promise<SourceDto[]> {

@@ -50,6 +50,7 @@ class Source(Base):
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_reference: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     student: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
     imported_at: Mapped[datetime] = mapped_column(
