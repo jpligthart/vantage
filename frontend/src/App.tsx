@@ -651,6 +651,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setRightTab("chat")}
+                  title="Analyseer het studentenwerk in gespreksvorm (Verkennen, Onderzoeken of Sparren)"
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
                     rightTab === "chat"
                       ? "border-amber-500 text-amber-200 bg-slate-950/50"
@@ -663,6 +664,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setRightTab("feedback")}
+                  title="Stel conceptfeedback op, werk eigen steekwoorden uit of herschrijf je concepttekst"
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
                     rightTab === "feedback"
                       ? "border-amber-500 text-amber-200 bg-slate-950/50"

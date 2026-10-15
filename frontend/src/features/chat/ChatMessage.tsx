@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Check, Copy, User } from "lucide-react";
+import { Bot, Check, Copy, Loader2, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { CitationDto, MessageDto } from "../../types/domain";
@@ -28,6 +28,7 @@ export function ChatMessage({ message, onCitationClick, onRemember, onAddToFeedb
   }
 
   const isStreaming = message.id === "streaming";
+  const isThinking = isStreaming && !message.content.trim();
 
   return (
     <div
@@ -81,7 +82,7 @@ export function ChatMessage({ message, onCitationClick, onRemember, onAddToFeedb
               Naar feedback
             </button>
           )}
-          {!isUser && (
+          {!isUser && !isThinking && (
             <button
               type="button"
               onClick={handleCopy}
@@ -117,7 +118,19 @@ export function ChatMessage({ message, onCitationClick, onRemember, onAddToFeedb
               isStreaming && "border-l-amber-400",
             )}
           >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            {isThinking ? (
+              <div className="flex items-center gap-2 py-0.5 text-slate-300 text-xs">
+                <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" aria-hidden />
+                <span>Bronnen lezen en antwoord opbouwen…</span>
+                <span className="inline-flex items-center gap-1 ml-0.5" aria-hidden>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400/80 animate-bounce" />
+                </span>
+              </div>
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            )}
           </div>
         )}
 

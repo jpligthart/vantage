@@ -190,6 +190,67 @@ export async function saveFeedbackDraft(sessionId: string, content: string) {
   });
 }
 
+function consumeSseEvents(
+  raw: string,
+  onEvent: (type: string, data: unknown) => void,
+): { rest: string; finished: boolean } {
+  const normalized = raw.replace(/\r\n/g, "\n");
+  const parts = normalized.split("\n\n");
+  const rest = parts.pop() || "";
+  for (const part of parts) {
+    const lines = part.split("\n");
+    let eventType = "message";
+    let dataLine = "";
+    for (const line of lines) {
+      if (line.startsWith("event:")) eventType = line.slice(6).trim();
+      if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+    }
+    if (!dataLine) continue;
+    try {
+      onEvent(eventType, JSON.parse(dataLine));
+    } catch {
+      // Ignore malformed SSE payload line so the stream can still terminate cleanly
+    }
+    if (eventType === "done" || eventType === "error") {
+      return { rest: "", finished: true };
+    }
+  }
+  return { rest, finished: false };
+}
+
+async function readSseStream(
+  res: Response,
+  onEvent: (type: string, data: unknown) => void,
+) {
+  if (!res.ok || !res.body) {
+    throw new Error(await res.text());
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        buffer += decoder.decode();
+        if (buffer.trim()) {
+          consumeSseEvents(`${buffer}\n\n`, onEvent);
+        }
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const step = consumeSseEvents(buffer, onEvent);
+      buffer = step.rest;
+      if (step.finished) {
+        await reader.cancel().catch(() => undefined);
+        break;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 export async function streamFeedback(
   sessionId: string,
   payload: {
@@ -208,31 +269,7 @@ export async function streamFeedback(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok || !res.body) {
-    throw new Error(await res.text());
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
-    for (const part of parts) {
-      const lines = part.split("\n");
-      let eventType = "message";
-      let dataLine = "";
-      for (const line of lines) {
-        if (line.startsWith("event:")) eventType = line.slice(6).trim();
-        if (line.startsWith("data:")) dataLine = line.slice(5).trim();
-      }
-      if (dataLine) {
-        onEvent(eventType, JSON.parse(dataLine));
-      }
-    }
-  }
+  await readSseStream(res, onEvent);
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -277,29 +314,5 @@ export async function streamChat(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok || !res.body) {
-    throw new Error(await res.text());
-  }
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() || "";
-    for (const part of parts) {
-      const lines = part.split("\n");
-      let eventType = "message";
-      let dataLine = "";
-      for (const line of lines) {
-        if (line.startsWith("event:")) eventType = line.slice(6).trim();
-        if (line.startsWith("data:")) dataLine = line.slice(5).trim();
-      }
-      if (dataLine) {
-        onEvent(eventType, JSON.parse(dataLine));
-      }
-    }
-  }
+  await readSseStream(res, onEvent);
 }

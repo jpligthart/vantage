@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Copy, FileCheck2, RotateCcw, Sparkles, Wand2, FileEdit } from "lucide-react";
+import { Check, Copy, FileCheck2, FileEdit, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import type { CitationDto, FeedbackAction, SourceDto } from "../../types/domain";
 import { streamFeedback } from "../../services/api";
 import { citationTooltip, formatCitationLabel, sortCitations } from "../../lib/citations";
@@ -311,6 +311,12 @@ export function FeedbackPanel({
           </div>
         </div>
 
+        <p className="text-[11px] text-slate-400 leading-tight">
+          <span className="text-amber-400/90 font-medium">Feedback opstellen:</span> nieuw concept vanuit de bronnen ·{" "}
+          <span className="text-slate-300 font-medium">Steekwoorden aanvullen:</span> werkt je eigen bullets uit ·{" "}
+          <span className="text-slate-300 font-medium">Concept herschrijven:</span> polijst je eigen tekst
+        </p>
+
         {contextLabel && <p className="text-[11px] text-slate-500">{contextLabel}</p>}
       </div>
 
@@ -330,6 +336,18 @@ export function FeedbackPanel({
           </div>
         )}
         {error && <p className="text-red-400 text-xs whitespace-pre-wrap shrink-0">{error}</p>}
+        {busyAction && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-slate-800/70 border border-amber-500/40 text-xs text-slate-200 shrink-0">
+            <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" aria-hidden />
+            <span>
+              {busyAction === "compose"
+                ? "Bronnen lezen en conceptfeedback opstellen…"
+                : busyAction === "expand"
+                  ? "Steekwoorden uitwerken met voorbeelden uit de bronnen…"
+                  : "Conceptfeedback herschrijven…"}
+            </span>
+          </div>
+        )}
 
         <textarea
           className="flex-1 w-full bg-slate-900/90 border border-slate-700/80 focus:border-amber-500/60 rounded-lg p-3 text-sm text-slate-100 leading-relaxed outline-none resize-none font-sans"

@@ -1,14 +1,32 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Brain, ChevronDown, ChevronRight, FileCheck2, MessageSquare } from "lucide-react";
 import type { ChatMode, CitationDto, MessageDto, SourceDto } from "../../types/domain";
-import { streamChat } from "../../services/api";
+import { getMessages, streamChat } from "../../services/api";
 import { cn } from "../../lib/utils";
 import { ChatMessage } from "./ChatMessage";
 
-const MODES: { id: ChatMode; label: string }[] = [
-  { id: "explore", label: "Verkennen" },
-  { id: "investigate", label: "Onderzoeken" },
-  { id: "spar", label: "Sparren" },
+const MODES: { id: ChatMode; label: string; summary: string; description: string }[] = [
+  {
+    id: "explore",
+    label: "Verkennen",
+    summary: "Overzicht & structuur in kaart brengen zonder direct oordeel.",
+    description:
+      "Verkennen: brengt structuur en hoofdthema's in kaart en legt verbanden zonder observaties als harde feiten te presenteren.",
+  },
+  {
+    id: "investigate",
+    label: "Onderzoeken",
+    summary: "Gericht bewijs en citaten zoeken in de bronnen.",
+    description:
+      "Onderzoeken: zoekt gericht naar bewijs in de tekst en maakt scherp onderscheid tussen wat er letterlijk staat en wat je afleidt.",
+  },
+  {
+    id: "spar",
+    label: "Sparren",
+    summary: "Kritisch klankbord: toetst aannames en zoekt tegenbewijs.",
+    description:
+      "Sparren: denkt kritisch tegen, zoekt tegenbewijs bij je aannames en ordent naar observaties, interpretaties en onzekerheden.",
+  },
 ];
 
 interface Props {
@@ -127,9 +145,9 @@ export function ChatPanel({
   useLayoutEffect(() => {
     const userJustSent = messages.length > prevMessageCountRef.current;
     const hadStreaming = wasStreamingRef.current;
-    const streamStarted = Boolean(streaming) && !hadStreaming;
-    const streamEnded = !streaming && hadStreaming;
-    const streamActive = Boolean(streaming);
+    const streamActive = busy || Boolean(streaming);
+    const streamStarted = streamActive && !hadStreaming;
+    const streamEnded = !streamActive && hadStreaming;
     prevMessageCountRef.current = messages.length;
     wasStreamingRef.current = streamActive;
 
@@ -145,7 +163,7 @@ export function ChatPanel({
     if ((streamActive || pendingCitations.length > 0) && stickToBottomRef.current) {
       scrollChatToBottom("auto");
     }
-  }, [messages, messages.length, streaming, pendingCitations.length]);
+  }, [messages, messages.length, busy, streaming, pendingCitations.length]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -230,15 +248,18 @@ export function ChatPanel({
         error: e instanceof Error ? e.message : "Chat mislukt",
       }));
     } finally {
+      patchStream(convAtSend, () => ({
+        busy: false,
+      }));
       try {
-        const { getMessages } = await import("../../services/api");
         const serverMsgs = await getMessages(sessionAtSend, convAtSend);
         if (conversationIdRef.current === convAtSend) {
           onMessagesChange(serverMsgs);
         }
+      } catch {
+        // Keep existing messages visible if refresh fails
       } finally {
         patchStream(convAtSend, () => ({
-          busy: false,
           streaming: "",
           pendingCitations: [],
         }));
@@ -247,7 +268,7 @@ export function ChatPanel({
   }
 
   const displayMessages = [...messages];
-  if (streaming) {
+  if (busy || streaming) {
     displayMessages.push({
       id: "streaming",
       role: "assistant",
@@ -258,9 +279,11 @@ export function ChatPanel({
     });
   }
 
+  const activeMode = MODES.find((m) => m.id === mode) ?? MODES[2];
+
   return (
     <div className="flex flex-col h-full border-l border-slate-800 bg-slate-950/20">
-      <div className="border-b border-slate-800 bg-slate-900/90 px-3 py-2 space-y-2 shrink-0">
+      <div className="border-b border-slate-800 bg-slate-900/90 px-3 py-2 space-y-1.5 shrink-0">
         {/* Row 1: Conversation Title + Mode Selector */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -271,6 +294,7 @@ export function ChatPanel({
               disabled={!conversationId}
               placeholder="Gesprekstitel…"
               aria-label="Gesprekstitel"
+              title="Klik om de titel van dit gesprek aan te passen"
               onChange={(e) => setTitleDraft(e.target.value)}
               onBlur={() => {
                 const next = titleDraft.trim();
@@ -289,6 +313,7 @@ export function ChatPanel({
                 key={m.id}
                 type="button"
                 onClick={() => setMode(m.id)}
+                title={m.description}
                 className={cn(
                   "px-2 py-1 text-xs rounded transition-colors",
                   mode === m.id
@@ -301,6 +326,11 @@ export function ChatPanel({
             ))}
           </div>
         </div>
+
+        {/* Mode explanation line */}
+        <p className="text-[11px] text-slate-400 text-right leading-tight">
+          <span className="text-amber-400/90 font-medium">{activeMode.label}:</span> {activeMode.summary}
+        </p>
 
         {/* Row 2: Context Sources + Session Memory toggle */}
         <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
