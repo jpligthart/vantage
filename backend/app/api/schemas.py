@@ -42,6 +42,26 @@ class SessionMemoryAppend(BaseModel):
 class SourcePaste(BaseModel):
     text: str = Field(min_length=1)
     title: str | None = Field(default=None, max_length=512)
+    isReference: bool = False
+
+
+class SourceUpdate(BaseModel):
+    isReference: bool | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=512)
+
+
+class FeedbackDraftUpdate(BaseModel):
+    content: str = Field(max_length=32000)
+
+
+class FeedbackGenerateRequest(BaseModel):
+    action: str = Field(default="compose")
+    draft: str = Field(default="", max_length=32000)
+    instructions: str | None = Field(default=None, max_length=2000)
+    model: str
+    conversationId: str | None = None
+    selection: str | None = None
+    sourceIds: list[str] | None = None
 
 
 class ChatRequest(BaseModel):

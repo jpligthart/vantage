@@ -15,6 +15,7 @@ from app.models.entities import (
 )
 
 NOTE_MAX_CHARS = 8000
+FEEDBACK_MAX_CHARS = 32000
 
 
 def _touch(session: AnalysisSession) -> None:
@@ -284,6 +285,22 @@ def append_session_memory(db: Session, session_id: str, content: str) -> str:
     if len(combined) > NOTE_MAX_CHARS:
         combined = combined[-NOTE_MAX_CHARS:]
     return set_session_memory(db, session_id, combined)
+
+
+def get_feedback_draft(db: Session, session_id: str) -> str:
+    session = get_session_or_404(db, session_id)
+    return session.feedback_draft or ""
+
+
+def set_feedback_draft(db: Session, session_id: str, content: str) -> str:
+    session = get_session_or_404(db, session_id)
+    text = content.strip() if content else ""
+    if len(text) > FEEDBACK_MAX_CHARS:
+        raise HTTPException(status_code=400, detail="Feedbacktekst is te lang")
+    session.feedback_draft = text
+    _touch(session)
+    db.commit()
+    return session.feedback_draft
 
 
 def get_messages(db: Session, session_id: str, conversation_id: str) -> list[ConversationMessage]:

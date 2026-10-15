@@ -5,12 +5,14 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.agents.citations import sort_citation_payloads
-from app.agents.chat import stream_chat
+from app.agents.chat import stream_chat, stream_feedback
 from app.api.schemas import (
     ChatRequest,
     ConversationCreate,
     ConversationSourcesUpdate,
     ConversationUpdate,
+    FeedbackDraftUpdate,
+    FeedbackGenerateRequest,
     SessionCreate,
     SessionMemoryAppend,
     SessionMemoryUpdate,
@@ -30,6 +32,7 @@ from app.sessions.service import (
     delete_session,
     detach_source,
     get_conversation_or_404,
+    get_feedback_draft,
     get_messages,
     get_session_memory,
     get_session_or_404,
@@ -38,6 +41,7 @@ from app.sessions.service import (
     rename_conversation,
     session_sources,
     set_conversation_sources,
+    set_feedback_draft,
     set_session_memory,
     update_session,
 )
@@ -81,6 +85,7 @@ def _session_payload(db: Session, session, *, include_sources: bool) -> dict:
         "createdAt": session.created_at.isoformat() if session.created_at else None,
         "updatedAt": session.updated_at.isoformat() if session.updated_at else None,
         "memory": get_session_memory(db, session.id) if include_sources else None,
+        "feedbackDraft": get_feedback_draft(db, session.id) if include_sources else None,
         "conversations": [_conversation_payload(db, conversation) for conversation in conversations],
     }
     if include_sources:
@@ -197,6 +202,46 @@ def put_memory(session_id: str, body: SessionMemoryUpdate, db: Session = Depends
 @router.post("/{session_id}/memory")
 def post_memory(session_id: str, body: SessionMemoryAppend, db: Session = Depends(get_db)) -> dict:
     return {"content": append_session_memory(db, session_id, body.content)}
+
+
+@router.get("/{session_id}/feedback")
+def get_feedback(session_id: str, db: Session = Depends(get_db)) -> dict:
+    return {"content": get_feedback_draft(db, session_id)}
+
+
+@router.put("/{session_id}/feedback")
+def put_feedback(session_id: str, body: FeedbackDraftUpdate, db: Session = Depends(get_db)) -> dict:
+    return {"content": set_feedback_draft(db, session_id, body.content)}
+
+
+@router.post("/{session_id}/feedback/generate")
+async def generate_feedback(
+    session_id: str,
+    body: FeedbackGenerateRequest,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    session = get_session_or_404(db, session_id)
+    conversation = (
+        get_conversation_or_404(db, session_id, body.conversationId)
+        if body.conversationId
+        else None
+    )
+
+    async def event_generator():
+        async for event_type, payload in stream_feedback(
+            db,
+            session,
+            body.action,
+            body.model,
+            body.draft,
+            instructions=body.instructions,
+            selection=body.selection,
+            conversation=conversation,
+            source_ids=body.sourceIds,
+        ):
+            yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/{session_id}/conversations/{conversation_id}/messages")

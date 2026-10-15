@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-MARKER_RE = re.compile(r"\[\[chunk:((?:D\d+)?C\d+)\]\]")
+MARKER_RE = re.compile(r"\[\[chunk:((?:[DR]\d+)?C\d+)\]\]")
 _C_PART_RE = re.compile(r"C(\d+)$")
 
 

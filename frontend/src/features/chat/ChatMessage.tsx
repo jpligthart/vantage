@@ -10,13 +10,14 @@ interface Props {
   message: MessageDto;
   onCitationClick: (c: CitationDto) => void;
   onRemember?: (content: string) => void;
+  onAddToFeedback?: (content: string) => void;
 }
 
 async function copyText(text: string) {
   await navigator.clipboard.writeText(text);
 }
 
-export function ChatMessage({ message, onCitationClick, onRemember }: Props) {
+export function ChatMessage({ message, onCitationClick, onRemember, onAddToFeedback }: Props) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
 
@@ -68,6 +69,16 @@ export function ChatMessage({ message, onCitationClick, onRemember }: Props) {
               title="Zet dit antwoord in het sessiegeheugen"
             >
               In geheugen
+            </button>
+          )}
+          {!isUser && !isStreaming && onAddToFeedback && (
+            <button
+              type="button"
+              onClick={() => onAddToFeedback(message.content)}
+              className="text-xs text-slate-500 hover:text-sky-300"
+              title="Voeg dit antwoord toe aan het feedbackconcept"
+            >
+              Naar feedback
             </button>
           )}
           {!isUser && (

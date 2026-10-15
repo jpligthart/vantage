@@ -28,6 +28,7 @@ interface Props {
   onMemoryChange: (value: string) => void;
   onSaveMemory: () => void;
   onRemember: (content: string) => void;
+  onAddToFeedback?: (content: string) => void;
   selection?: { text: string; chunkId?: string };
   onClearSelection: () => void;
 }
@@ -49,6 +50,7 @@ export function ChatPanel({
   onMemoryChange,
   onSaveMemory,
   onRemember,
+  onAddToFeedback,
   selection,
   onClearSelection,
 }: Props) {
@@ -270,17 +272,22 @@ export function ChatPanel({
                     className={cn(
                       "inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border max-w-[13rem] transition-colors",
                       checked
-                        ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
+                        ? source.isReference
+                          ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
+                          : "border-amber-500/50 bg-amber-500/10 text-amber-200"
                         : "border-slate-800 bg-slate-950/50 text-slate-500 line-through hover:text-slate-300",
                     )}
                   >
                     <span
                       className={cn(
                         "w-1.5 h-1.5 rounded-full shrink-0",
-                        checked ? "bg-amber-400" : "bg-slate-600",
+                        checked ? (source.isReference ? "bg-sky-400" : "bg-amber-400") : "bg-slate-600",
                       )}
                     />
                     <span className="truncate">{source.name}</span>
+                    {source.isReference && (
+                      <span className="text-[10px] opacity-80 shrink-0">(Kader)</span>
+                    )}
                   </button>
                 );
               })}
@@ -354,6 +361,7 @@ export function ChatPanel({
             message={m}
             onCitationClick={onCitationClick}
             onRemember={m.role === "assistant" ? onRemember : undefined}
+            onAddToFeedback={m.role === "assistant" ? onAddToFeedback : undefined}
           />
         ))}
         {error && <p className="text-red-400 text-sm whitespace-pre-wrap">{error}</p>}

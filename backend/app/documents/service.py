@@ -22,6 +22,7 @@ def source_to_dict(source: Source) -> dict:
         "type": source.type.value,
         "status": source.status.value,
         "error": source.error,
+        "isReference": bool(source.is_reference),
         "student": source.student,
         "subject": source.subject,
         "importedAt": source.imported_at.isoformat() if source.imported_at else None,

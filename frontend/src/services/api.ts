@@ -1,5 +1,6 @@
 import type {
   ChatMode,
+  FeedbackAction,
   MessageDto,
   SessionDetail,
   SessionDto,
@@ -42,6 +43,7 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
     type: string;
     status: string;
     error?: string;
+    isReference?: boolean;
     student?: string | null;
     subject?: string | null;
   }>(`/api/sources/${sourceId}`);
@@ -51,9 +53,21 @@ export async function getSource(sourceId: string): Promise<SourceDto> {
     type: data.type as SourceDto["type"],
     status: data.status as SourceDto["status"],
     error: data.error,
+    isReference: data.isReference ?? false,
     student: data.student,
     subject: data.subject,
   };
+}
+
+export async function updateSource(
+  sourceId: string,
+  patch: { isReference?: boolean; name?: string },
+): Promise<SourceDto> {
+  return request<SourceDto>(`/api/sources/${sourceId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
 }
 
 export async function listSources(): Promise<SourceDto[]> {
@@ -98,7 +112,13 @@ export async function listSessions(): Promise<SessionDto[]> {
 
 export async function getSession(sessionId: string): Promise<SessionDetail> {
   const data = await request<SessionDetail>(`/api/sessions/${sessionId}`);
-  return { ...data, memory: data.memory ?? "", conversations: data.conversations ?? [], sources: data.sources ?? [] };
+  return {
+    ...data,
+    memory: data.memory ?? "",
+    feedbackDraft: data.feedbackDraft ?? "",
+    conversations: data.conversations ?? [],
+    sources: data.sources ?? [],
+  };
 }
 
 export async function detachSource(sessionId: string, sourceId: string) {
@@ -160,6 +180,59 @@ export async function appendMemory(sessionId: string, content: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
   });
+}
+
+export async function saveFeedbackDraft(sessionId: string, content: string) {
+  return request<{ content: string }>(`/api/sessions/${sessionId}/feedback`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function streamFeedback(
+  sessionId: string,
+  payload: {
+    action: FeedbackAction;
+    draft: string;
+    instructions?: string;
+    model: string;
+    conversationId?: string | null;
+    selection?: string;
+    sourceIds?: string[];
+  },
+  onEvent: (type: string, data: unknown) => void,
+) {
+  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/feedback/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok || !res.body) {
+    throw new Error(await res.text());
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() || "";
+    for (const part of parts) {
+      const lines = part.split("\n");
+      let eventType = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+      }
+      if (dataLine) {
+        onEvent(eventType, JSON.parse(dataLine));
+      }
+    }
+  }
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {

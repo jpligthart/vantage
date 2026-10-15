@@ -127,3 +127,34 @@ def test_multi_document_markers_do_not_collide():
     assert index_map["D2C1"].content == "eerste reflectie"
     assert [item["name"] for item in sizes] == ["verslag.txt", "reflectie.txt"]
     assert all(item["tokens"] > 0 for item in sizes)
+
+
+def test_reference_sources_get_r_markers_and_header():
+    student_src = _source("verslag.txt")
+    ref_src = _source("hbo-i.txt")
+    ref_src.is_reference = True
+    chunks_s = [
+        SourceChunk(
+            document_id="doc-s",
+            prompt_index=1,
+            anchor_id="s1",
+            content="studenttekst",
+        )
+    ]
+    chunks_r = [
+        SourceChunk(
+            document_id="doc-r",
+            prompt_index=1,
+            anchor_id="r1",
+            content="architectuur niveau 2",
+        )
+    ]
+    text, index_map, sizes = build_multi_document_context(
+        [(student_src, chunks_s), (ref_src, chunks_r)]
+    )
+    assert "STUDENTENWERK:" in text
+    assert "KADERS EN RICHTLIJNEN:" in text
+    assert "[D1C1]" in text
+    assert "[R1C1]" in text
+    assert index_map["R1C1"].source_id == ref_src.id
+    assert sizes[1]["isReference"] is True

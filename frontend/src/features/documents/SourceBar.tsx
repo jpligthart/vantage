@@ -14,6 +14,7 @@ interface Props {
   onFile: (file: File) => void;
   onPasteText: (text: string, title?: string) => void;
   onAttachExisting: (sourceId: string) => void;
+  onToggleReference: (sourceId: string, isReference: boolean) => void;
   onOpenLibrary: () => void;
 }
 
@@ -28,6 +29,7 @@ export function SourceBar({
   onFile,
   onPasteText,
   onAttachExisting,
+  onToggleReference,
   onOpenLibrary,
 }: Props) {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -86,10 +88,11 @@ export function SourceBar({
         <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
           {sources.map((source) => {
             const active = source.id === activeSourceId;
+            const isRef = Boolean(source.isReference);
             return (
               <div
                 key={source.id}
-                className={`group flex items-center max-w-[15rem] rounded-md border text-xs transition-colors ${
+                className={`group flex items-center max-w-[18rem] rounded-md border text-xs transition-colors ${
                   active
                     ? "border-amber-500/80 bg-amber-500/10 text-amber-100 font-medium"
                     : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200"
@@ -98,7 +101,7 @@ export function SourceBar({
                 <button
                   type="button"
                   onClick={() => onSelect(source.id)}
-                  className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 truncate text-left"
+                  className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 truncate text-left"
                   title={source.name}
                 >
                   <FileText className="w-3.5 h-3.5 shrink-0 opacity-70" aria-hidden />
@@ -109,8 +112,24 @@ export function SourceBar({
                 </button>
                 <button
                   type="button"
+                  onClick={() => onToggleReference(source.id, !isRef)}
+                  title={
+                    isRef
+                      ? "Gemarkeerd als referentiekader (bijv. leerdoelen / HBO-i / beleid). Klik om weer als studentenwerk te markeren."
+                      : "Markeer als kader / richtlijn (bijv. leerdoelen, HBO-i, beleidsinfo)"
+                  }
+                  className={`px-1.5 py-0.5 my-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 ${
+                    isRef
+                      ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
+                      : "border-transparent text-slate-500 opacity-0 group-hover:opacity-100 hover:border-slate-700 hover:text-slate-300"
+                  }`}
+                >
+                  Kader
+                </button>
+                <button
+                  type="button"
                   onClick={() => onDetach(source.id)}
-                  className="pr-2 pl-0.5 py-1 text-slate-500 hover:text-red-400 transition-colors"
+                  className="pr-2 pl-1 py-1 text-slate-500 hover:text-red-400 transition-colors"
                   title="Loskoppelen van deze sessie"
                   aria-label={`${source.name} loskoppelen`}
                 >
@@ -172,14 +191,19 @@ export function SourceBar({
                         <li key={source.id}>
                           <button
                             type="button"
-                            className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-slate-800 text-slate-300 truncate"
+                            className="w-full flex items-center justify-between gap-1.5 text-left text-xs px-2 py-1.5 rounded hover:bg-slate-800 text-slate-300"
                             onClick={() => {
                               onAttachExisting(source.id);
                               setPickerOpen(false);
                               setAddMenuOpen(false);
                             }}
                           >
-                            {source.name}
+                            <span className="truncate">{source.name}</span>
+                            {source.isReference && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/50 text-sky-200">
+                                Kader
+                              </span>
+                            )}
                           </button>
                         </li>
                       ))}

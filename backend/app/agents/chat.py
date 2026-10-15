@@ -9,8 +9,13 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from sqlalchemy.orm import Session
 
-from app.agents.citations import CitationStreamFilter, build_citation_items
-from app.agents.prompts import BASE_SYSTEM_PROMPT, MODE_PROMPTS
+from app.agents.citations import CitationStreamFilter, build_citation_items, strip_markers_from_stream
+from app.agents.prompts import (
+    BASE_SYSTEM_PROMPT,
+    FEEDBACK_ACTION_PROMPTS,
+    FEEDBACK_SYSTEM_PROMPT,
+    MODE_PROMPTS,
+)
 from app.agents.tokens import count_tokens, fits_context
 from app.core.config import get_settings
 from app.documents.service import chunk_bbox, get_chunks_for_document
@@ -27,7 +32,7 @@ from app.models.entities import (
     SourceChunk,
     SourceStatus,
 )
-from app.sessions.service import get_session_memory, session_sources
+from app.sessions.service import get_session_memory, session_sources, set_feedback_draft
 
 logger = logging.getLogger(__name__)
 
@@ -62,22 +67,48 @@ def context_sources(db: Session, session: AnalysisSession, conversation: Convers
 def build_multi_document_context(
     documents: list[tuple[Source, list[SourceChunk]]],
 ) -> tuple[str, dict[str, CitedChunk], list[dict]]:
-    blocks: list[str] = []
+    student_docs = [(s, c) for s, c in documents if not getattr(s, "is_reference", False)]
+    ref_docs = [(s, c) for s, c in documents if getattr(s, "is_reference", False)]
+
     index_map: dict[str, CitedChunk] = {}
     sizes: list[dict] = []
-    for doc_index, (source, chunks) in enumerate(documents, start=1):
-        lines = [f"## D{doc_index}: {source.name}"]
-        for chunk in chunks:
-            label = f"D{doc_index}C{chunk.prompt_index}"
-            cited = CitedChunk(chunk, source.id, source.name)
-            index_map[label] = cited
-            lines.append(f"[{label}] {chunk.content}")
-        text = "\n\n".join(lines)
-        sizes.append(
-            {"sourceId": source.id, "name": source.name, "tokens": count_tokens(text)}
-        )
-        blocks.append(text)
-    return "\n\n".join(blocks), index_map, sizes
+    sections: list[str] = []
+
+    def _render_group(
+        group: list[tuple[Source, list[SourceChunk]]], prefix: str
+    ) -> list[str]:
+        blocks: list[str] = []
+        for idx, (source, chunks) in enumerate(group, start=1):
+            lines = [f"## {prefix}{idx}: {source.name}"]
+            for chunk in chunks:
+                label = f"{prefix}{idx}C{chunk.prompt_index}"
+                cited = CitedChunk(chunk, source.id, source.name)
+                index_map[label] = cited
+                lines.append(f"[{label}] {chunk.content}")
+            text = "\n\n".join(lines)
+            sizes.append(
+                {
+                    "sourceId": source.id,
+                    "name": source.name,
+                    "tokens": count_tokens(text),
+                    "isReference": bool(getattr(source, "is_reference", False)),
+                }
+            )
+            blocks.append(text)
+        return blocks
+
+    student_blocks = _render_group(student_docs, "D")
+    ref_blocks = _render_group(ref_docs, "R")
+
+    if student_blocks and ref_blocks:
+        sections.append("STUDENTENWERK:\n" + "\n\n".join(student_blocks))
+        sections.append("KADERS EN RICHTLIJNEN:\n" + "\n\n".join(ref_blocks))
+    elif student_blocks:
+        sections.append("\n\n".join(student_blocks))
+    elif ref_blocks:
+        sections.append("KADERS EN RICHTLIJNEN:\n" + "\n\n".join(ref_blocks))
+
+    return "\n\n".join(sections), index_map, sizes
 
 
 def _ready_documents(
@@ -296,6 +327,169 @@ async def stream_chat(
         },
     )
     yield ("done", {"messageId": assistant.id})
+
+
+async def stream_feedback(
+    db: Session,
+    session: AnalysisSession,
+    action: str,
+    model_name: str,
+    draft: str,
+    instructions: str | None = None,
+    selection: str | None = None,
+    conversation: Conversation | None = None,
+    source_ids: list[str] | None = None,
+) -> AsyncIterator[tuple[str, dict]]:
+    settings = get_settings()
+    if source_ids is not None:
+        all_sources = session_sources(db, session.id)
+        allowed = set(source_ids)
+        selected = [s for s in all_sources if s.id in allowed]
+    elif conversation is not None:
+        selected = context_sources(db, session, conversation)
+    else:
+        selected = session_sources(db, session.id)
+
+    ready, error_code = _ready_documents(db, selected)
+    if error_code:
+        yield ("error", {"code": error_code, "message": _error_message(error_code)})
+        return
+
+    documents = [
+        (source, get_chunks_for_document(db, document.id)) for source, document in ready
+    ]
+    doc_text, index_map, sizes = build_multi_document_context(documents)
+    memory = get_session_memory(db, session.id).strip()
+    memory_block = f"SESSIEGEHEUGEN:\n{memory}\n\n" if memory else ""
+    document_for_budget = f"{doc_text}\n\n{memory_block}".strip()
+
+    action_key = action if action in FEEDBACK_ACTION_PROMPTS else "compose"
+    action_prompt = FEEDBACK_ACTION_PROMPTS[action_key]
+
+    if action_key in ("expand", "rewrite") and not (draft and draft.strip()):
+        yield (
+            "error",
+            {
+                "code": "empty_draft",
+                "message": "Schrijf eerst steekwoorden of conceptfeedback in het tekstvak.",
+            },
+        )
+        return
+
+    system = f"{FEEDBACK_SYSTEM_PROMPT}\n\nOPDRACHT:\n{action_prompt}"
+    if selection and selection.strip():
+        system += f"\n\nGESELECTEERDE PASSAGE:\n{selection.strip()}"
+
+    user_parts: list[str] = []
+    if draft and draft.strip():
+        label = (
+            "STEEKWOORDEN / CONCEPT VAN DOCENT:"
+            if action_key in ("expand", "rewrite")
+            else "HUIDIGE CONCEPTFEEDBACK / AANTEKENINGEN:"
+        )
+        user_parts.append(f"{label}\n{draft.strip()}")
+    if instructions and instructions.strip():
+        user_parts.append(f"EXTRA INSTRUCTIE VAN DOCENT:\n{instructions.strip()}")
+    if not user_parts:
+        user_parts.append("Stel de conceptfeedback op.")
+    user_message = "\n\n".join(user_parts)
+
+    model_ctx = await _get_context_len(model_name)
+    ok, _ = fits_context(
+        system=system,
+        document=document_for_budget,
+        history="",
+        user_message=user_message,
+        model_context=model_ctx,
+    )
+    if not ok:
+        yield (
+            "error",
+            {
+                "code": "document_too_large",
+                "message": _too_large_message(sizes),
+                "sources": sizes,
+            },
+        )
+        return
+
+    skipped = [source.name for source in selected if source.status != SourceStatus.ready]
+    yield (
+        "context",
+        {
+            "strategy": "full_document",
+            "sourceCount": len(documents),
+            "sources": sizes,
+            "skipped": skipped,
+        },
+    )
+
+    prompt = (
+        f"DOCUMENTCONTEXT:\n{doc_text}\n\n"
+        f"{memory_block}"
+        f"{user_message}"
+    )
+
+    full_response = ""
+    stream_filter = CitationStreamFilter()
+
+    try:
+        provider = OpenAIProvider(base_url=settings.ollama_base_url, api_key="ollama")
+        model = OpenAIChatModel(model_name, provider=provider)
+        agent = Agent(model, system_prompt=system)
+
+        async with agent.run_stream(prompt) as result:
+            async for text in result.stream_text(delta=True):
+                full_response += text
+                cleaned = stream_filter.feed(text)
+                if cleaned:
+                    yield ("token", {"text": cleaned})
+        tail = stream_filter.flush()
+        if tail:
+            yield ("token", {"text": tail})
+    except httpx.HTTPError as exc:
+        logger.exception("Ollama unavailable")
+        yield (
+            "error",
+            {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
+        )
+        return
+    except Exception as exc:
+        logger.exception("Feedback generation failed")
+        yield ("error", {"code": "feedback_failed", "message": str(exc)[:500]})
+        return
+
+    first_source = documents[0][0]
+    citation_items = build_citation_items(
+        full_response,
+        index_map,
+        first_source.id,
+        first_source.name,
+        chunk_bbox,
+    )
+    display_text = strip_markers_from_stream(full_response).strip()
+    set_feedback_draft(db, session.id, display_text)
+
+    yield (
+        "citations",
+        {
+            "items": [
+                {
+                    "chunkId": c.chunk_id,
+                    "sourceId": c.source_id,
+                    "documentName": c.document_name,
+                    "pageNo": c.page_no,
+                    "sectionTitle": c.section_title,
+                    "excerpt": c.excerpt,
+                    "bbox": c.bbox,
+                    "anchorId": c.anchor_id,
+                    "promptIndex": c.prompt_index,
+                }
+                for c in citation_items
+            ]
+        },
+    )
+    yield ("done", {"content": display_text})
 
 
 async def _get_context_len(model_name: str) -> int | None:

@@ -1,4 +1,5 @@
 export type ChatMode = "explore" | "investigate" | "spar";
+export type FeedbackAction = "compose" | "expand" | "rewrite";
 
 export interface CitationDto {
   chunkId: string;
@@ -41,6 +42,7 @@ export interface SessionDto {
 
 export interface SessionDetail extends SessionDto {
   memory: string;
+  feedbackDraft: string;
   sources: SourceDto[];
 }
 
@@ -50,6 +52,7 @@ export interface SourceDto {
   type: "pdf" | "docx" | "text";
   status: "queued" | "processing" | "ready" | "failed";
   error?: string | null;
+  isReference?: boolean;
   student?: string | null;
   subject?: string | null;
 }

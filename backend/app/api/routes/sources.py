@@ -14,7 +14,7 @@ from app.documents.service import (
     list_sources,
     source_to_dict,
 )
-from app.api.schemas import SourcePaste
+from app.api.schemas import SourcePaste, SourceUpdate
 from app.documents.paste import save_pasted_text
 from app.documents.upload import save_upload
 from app.models.entities import Source, SourceStatus, SourceType
@@ -42,6 +42,7 @@ async def paste_source(
         storage_path=dest,
         checksum=checksum,
         status=SourceStatus.queued,
+        is_reference=body.isReference,
     )
     db.add(source)
     db.commit()
@@ -53,6 +54,7 @@ async def paste_source(
 async def upload_source(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    is_reference: bool = False,
     db: Session = Depends(get_db),
 ) -> dict:
     settings = get_settings()
@@ -64,6 +66,7 @@ async def upload_source(
         storage_path=str(dest),
         checksum=checksum,
         status=SourceStatus.queued,
+        is_reference=is_reference,
     )
     db.add(source)
     db.commit()
@@ -84,6 +87,18 @@ def _run_process(source_id: str) -> None:
 @router.get("/{source_id}")
 def get_source(source_id: str, db: Session = Depends(get_db)) -> dict:
     return source_to_dict(get_source_or_404(db, source_id))
+
+
+@router.patch("/{source_id}")
+def patch_source(source_id: str, body: SourceUpdate, db: Session = Depends(get_db)) -> dict:
+    source = get_source_or_404(db, source_id)
+    if body.isReference is not None:
+        source.is_reference = body.isReference
+    if body.name is not None and body.name.strip():
+        source.name = body.name.strip()
+    db.commit()
+    db.refresh(source)
+    return source_to_dict(source)
 
 
 @router.get("/{source_id}/status")

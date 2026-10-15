@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FileEdit, MessageSquare } from "lucide-react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
 import { DocxViewer } from "./features/documents/DocxViewer";
 import { PdfViewer } from "./features/documents/PdfViewer";
 import { SourceBar } from "./features/documents/SourceBar";
+import { FeedbackPanel } from "./features/feedback/FeedbackPanel";
 import { NewSessionDialog } from "./features/sessions/NewSessionDialog";
 import { SessionList } from "./features/sessions/SessionList";
 import {
@@ -23,9 +25,11 @@ import {
   listSources,
   pasteSource,
   renameConversation,
+  saveFeedbackDraft,
   saveMemory,
   setConversationSources,
   updateSession,
+  updateSource,
   uploadSource,
 } from "./services/api";
 import type { CitationDto, MessageDto, SessionDetail, SessionDto, SourceDto } from "./types/domain";
@@ -49,8 +53,11 @@ export default function App() {
   const [confirmDeleteConversationId, setConfirmDeleteConversationId] = useState<string | null>(null);
   const [library, setLibrary] = useState<SourceDto[]>([]);
   const [newSessionOpen, setNewSessionOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<"chat" | "feedback">("chat");
   const [memory, setMemory] = useState("");
+  const [feedbackDraft, setFeedbackDraft] = useState("");
   const memoryDirty = useRef(false);
+  const feedbackDirty = useRef(false);
   const labelsSessionId = useRef<string | null>(null);
   const loadSeq = useRef(0);
   const preferredConversationId = useRef<string | null>(null);
@@ -84,6 +91,7 @@ export default function App() {
         return next.sources[0]?.id ?? null;
       });
       if (!memoryDirty.current) setMemory(next.memory ?? "");
+      if (!feedbackDirty.current) setFeedbackDraft(next.feedbackDraft ?? "");
       if (conversationId) {
         const loaded = await getMessages(sessionId, conversationId);
         if (seq !== loadSeq.current) return next;
@@ -118,7 +126,9 @@ export default function App() {
     if (!detail || labelsSessionId.current === detail.id) return;
     labelsSessionId.current = detail.id;
     memoryDirty.current = false;
+    feedbackDirty.current = false;
     setMemory(detail.memory ?? "");
+    setFeedbackDraft(detail.feedbackDraft ?? "");
   }, [detail]);
 
   useEffect(() => {
@@ -256,6 +266,7 @@ export default function App() {
     if (id === activeSessionId) return;
     labelsSessionId.current = null;
     memoryDirty.current = false;
+    feedbackDirty.current = false;
     setHighlight(null);
     setSelection(undefined);
     setMessages([]);
@@ -264,9 +275,11 @@ export default function App() {
 
   async function openConversation(sessionId: string, conversationId: string) {
     setHighlight(null);
+    setRightTab("chat");
     if (sessionId !== activeSessionId) {
       labelsSessionId.current = null;
       memoryDirty.current = false;
+      feedbackDirty.current = false;
       preferredConversationId.current = conversationId;
       setMessages([]);
       setActiveSessionId(sessionId);
@@ -320,6 +333,7 @@ export default function App() {
         setHighlight(null);
         setSelection(undefined);
         setMemory("");
+        setFeedbackDraft("");
         labelsSessionId.current = null;
       }
       setConfirmDeleteId(null);
@@ -359,6 +373,25 @@ export default function App() {
     await detachSource(activeSessionId, sourceId);
     if (activeSourceId === sourceId) setActiveSourceId(null);
     await loadDetail(activeSessionId, { conversationId: activeConversationId });
+  }
+
+  async function handleToggleReference(sourceId: string, isReference: boolean) {
+    try {
+      const updated = await updateSource(sourceId, { isReference });
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              sources: current.sources.map((s) => (s.id === sourceId ? { ...s, isReference: updated.isReference } : s)),
+            }
+          : current,
+      );
+      setLibrary((current) =>
+        current.map((s) => (s.id === sourceId ? { ...s, isReference: updated.isReference } : s)),
+      );
+    } catch (error) {
+      fail(error, "Bron bijwerken mislukt");
+    }
   }
 
   async function toggleContextSource(sourceId: string) {
@@ -428,6 +461,33 @@ export default function App() {
     } catch (error) {
       fail(error, "Sessiegeheugen bijwerken mislukt");
     }
+  }
+
+  async function persistFeedback(overrideValue?: string) {
+    if (!activeSessionId) return;
+    if (overrideValue === undefined && !feedbackDirty.current) return;
+    const snapshot = overrideValue !== undefined ? overrideValue : feedbackDraft;
+    const sessionId = activeSessionId;
+    feedbackDirty.current = false;
+    try {
+      const saved = await saveFeedbackDraft(sessionId, snapshot);
+      setFeedbackDraft(saved.content);
+      setDetail((current) =>
+        current && current.id === sessionId ? { ...current, feedbackDraft: saved.content } : current,
+      );
+    } catch (error) {
+      fail(error, "Feedback opslaan mislukt");
+    }
+  }
+
+  async function addToFeedback(content: string) {
+    if (!activeSessionId) return;
+    const next = feedbackDraft.trim() ? `${feedbackDraft.trim()}\n\n${content.trim()}` : content.trim();
+    setFeedbackDraft(next);
+    feedbackDirty.current = false;
+    await persistFeedback(next);
+    setRightTab("feedback");
+    setStatusText("Toegevoegd aan feedbackconcept.");
   }
 
   function onCitationClick(citation: CitationDto) {
@@ -524,6 +584,7 @@ export default function App() {
                   onFile={handleAddFile}
                   onPasteText={handleAddPaste}
                   onAttachExisting={addSourceToSession}
+                  onToggleReference={handleToggleReference}
                   onOpenLibrary={() => {
                     listSources().then(setLibrary).catch(() => setLibrary([]));
                   }}
@@ -580,29 +641,79 @@ export default function App() {
           }
           trailing={
             <section className="min-h-0 flex flex-col h-full">
-              <ChatPanel
-                sessionId={activeSessionId}
-                conversationId={activeConversationId}
-                conversationTitle={conversation?.title ?? ""}
-                model={model}
-                sourceReady={contextReady}
-                sources={sources}
-                pinnedSourceIds={pinnedSourceIds}
-                memory={memory}
-                messages={messages}
-                onMessagesChange={setMessages}
-                onCitationClick={onCitationClick}
-                onRenameConversation={handleRenameConversation}
-                onToggleSource={toggleContextSource}
-                onMemoryChange={(value) => {
-                  memoryDirty.current = true;
-                  setMemory(value);
-                }}
-                onSaveMemory={persistMemory}
-                onRemember={remember}
-                selection={selection}
-                onClearSelection={() => setSelection(undefined)}
-              />
+              <div className="flex items-center gap-1 px-3 pt-2 border-b border-slate-800 border-l bg-slate-900 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setRightTab("chat")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
+                    rightTab === "chat"
+                      ? "border-amber-500 text-amber-200 bg-slate-950/50"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" aria-hidden />
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightTab("feedback")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
+                    rightTab === "feedback"
+                      ? "border-amber-500 text-amber-200 bg-slate-950/50"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <FileEdit className="w-3.5 h-3.5" aria-hidden />
+                  Feedback opstellen
+                  {feedbackDraft.trim() && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="Gevuld" />
+                  )}
+                </button>
+              </div>
+              <div className="flex-1 min-h-0">
+                {rightTab === "chat" ? (
+                  <ChatPanel
+                    sessionId={activeSessionId}
+                    conversationId={activeConversationId}
+                    conversationTitle={conversation?.title ?? ""}
+                    model={model}
+                    sourceReady={contextReady}
+                    sources={sources}
+                    pinnedSourceIds={pinnedSourceIds}
+                    memory={memory}
+                    messages={messages}
+                    onMessagesChange={setMessages}
+                    onCitationClick={onCitationClick}
+                    onRenameConversation={handleRenameConversation}
+                    onToggleSource={toggleContextSource}
+                    onMemoryChange={(value) => {
+                      memoryDirty.current = true;
+                      setMemory(value);
+                    }}
+                    onSaveMemory={persistMemory}
+                    onRemember={remember}
+                    onAddToFeedback={addToFeedback}
+                    selection={selection}
+                    onClearSelection={() => setSelection(undefined)}
+                  />
+                ) : (
+                  <FeedbackPanel
+                    sessionId={activeSessionId}
+                    conversationId={activeConversationId}
+                    model={model}
+                    sources={sources}
+                    draft={feedbackDraft}
+                    onDraftChange={(value) => {
+                      feedbackDirty.current = true;
+                      setFeedbackDraft(value);
+                    }}
+                    onSaveDraft={persistFeedback}
+                    onCitationClick={onCitationClick}
+                    selection={selection}
+                    onClearSelection={() => setSelection(undefined)}
+                  />
+                )}
+              </div>
             </section>
           }
         />

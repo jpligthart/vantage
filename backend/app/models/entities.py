@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -49,6 +49,7 @@ class Source(Base):
         Enum(SourceStatus), default=SourceStatus.queued, nullable=False
     )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_reference: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     student: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
     imported_at: Mapped[datetime] = mapped_column(
@@ -115,6 +116,7 @@ class AnalysisSession(Base):
     preferred_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     student: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    feedback_draft: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

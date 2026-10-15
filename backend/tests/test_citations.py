@@ -70,8 +70,12 @@ def test_sort_citation_items_page_then_prompt_index():
 
 
 def test_extract_document_scoped_marker():
-    markers = extract_markers("Zie [[chunk:D2C4]] en [[chunk:C1]].")
-    assert [(m.marker, m.prompt_index) for m in markers] == [("D2C4", 4), ("C1", 1)]
+    markers = extract_markers("Zie [[chunk:D2C4]], [[chunk:R1C2]] en [[chunk:C1]].")
+    assert [(m.marker, m.prompt_index) for m in markers] == [
+        ("D2C4", 4),
+        ("R1C2", 2),
+        ("C1", 1),
+    ]
 
 
 def test_marker_key_keeps_source():
