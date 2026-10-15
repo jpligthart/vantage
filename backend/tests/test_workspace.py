@@ -16,9 +16,11 @@ from app.sessions.service import (
     conversation_source_ids,
     create_conversation,
     create_session,
+    get_feedback_draft,
     list_conversations,
     session_sources,
     set_conversation_sources,
+    set_feedback_draft,
     truncate_messages_from,
     update_session,
 )
@@ -206,4 +208,18 @@ def test_default_sources_auto_attached_to_new_sessions():
     db.refresh(hboi)
     assert hboi.student is None
     assert hboi.subject is None
+
+
+def test_feedback_draft_is_isolated_per_conversation():
+    db = _db()
+    session = create_session(db, "Casus")
+    conv1 = list_conversations(db, session.id)[0]
+    conv2 = create_conversation(db, session.id, "Gesprek 2")
+
+    set_feedback_draft(db, session.id, "Feedback voor gesprek 1", conv1.id)
+    set_feedback_draft(db, session.id, "Feedback voor gesprek 2", conv2.id)
+
+    assert get_feedback_draft(db, session.id, conv1.id) == "Feedback voor gesprek 1"
+    assert get_feedback_draft(db, session.id, conv2.id) == "Feedback voor gesprek 2"
+
 

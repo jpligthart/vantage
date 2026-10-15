@@ -117,7 +117,6 @@ class AnalysisSession(Base):
     preferred_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     student: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    feedback_draft: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -162,6 +161,7 @@ class Conversation(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     session_id: Mapped[str] = mapped_column(ForeignKey("analysis_sessions.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String(512), nullable=False)
+    feedback_draft: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

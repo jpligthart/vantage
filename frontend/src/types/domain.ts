@@ -28,6 +28,7 @@ export interface ConversationDto {
   title: string;
   updatedAt?: string | null;
   sourceIds: string[];
+  feedbackDraft?: string;
 }
 
 export interface SessionDto {

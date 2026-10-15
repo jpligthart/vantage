@@ -297,20 +297,33 @@ def append_session_memory(db: Session, session_id: str, content: str) -> str:
     return set_session_memory(db, session_id, combined)
 
 
-def get_feedback_draft(db: Session, session_id: str) -> str:
-    session = get_session_or_404(db, session_id)
-    return session.feedback_draft or ""
+def get_feedback_draft(db: Session, session_id: str, conversation_id: str | None = None) -> str:
+    if conversation_id:
+        conversation = get_conversation_or_404(db, session_id, conversation_id)
+        return conversation.feedback_draft or ""
+    conversations = list_conversations(db, session_id)
+    return (conversations[0].feedback_draft or "") if conversations else ""
 
 
-def set_feedback_draft(db: Session, session_id: str, content: str) -> str:
+def set_feedback_draft(
+    db: Session, session_id: str, content: str, conversation_id: str | None = None
+) -> str:
     session = get_session_or_404(db, session_id)
+    if conversation_id:
+        conversation = get_conversation_or_404(db, session_id, conversation_id)
+    else:
+        conversations = list_conversations(db, session_id)
+        if not conversations:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        conversation = conversations[0]
     text = content.strip() if content else ""
     if len(text) > FEEDBACK_MAX_CHARS:
         raise HTTPException(status_code=400, detail="Feedbacktekst is te lang")
-    session.feedback_draft = text
+    conversation.feedback_draft = text
+    conversation.updated_at = datetime.now(timezone.utc)
     _touch(session)
     db.commit()
-    return session.feedback_draft
+    return conversation.feedback_draft
 
 
 def get_messages(db: Session, session_id: str, conversation_id: str) -> list[ConversationMessage]:

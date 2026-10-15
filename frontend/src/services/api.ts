@@ -148,7 +148,7 @@ export async function detachSource(sessionId: string, sourceId: string) {
 }
 
 export async function createConversation(sessionId: string, title?: string) {
-  return request<{ id: string; title: string; sourceIds: string[] }>(
+  return request<{ id: string; title: string; sourceIds: string[]; feedbackDraft?: string }>(
     `/api/sessions/${sessionId}/conversations`,
     {
       method: "POST",
@@ -204,12 +204,19 @@ export async function appendMemory(sessionId: string, content: string) {
   });
 }
 
-export async function saveFeedbackDraft(sessionId: string, content: string) {
-  return request<{ content: string }>(`/api/sessions/${sessionId}/feedback`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
-  });
+export async function saveFeedbackDraft(
+  sessionId: string,
+  conversationId: string,
+  content: string,
+) {
+  return request<{ content: string }>(
+    `/api/sessions/${sessionId}/conversations/${conversationId}/feedback`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  );
 }
 
 function consumeSseEvents(
@@ -287,7 +294,10 @@ export async function streamFeedback(
   onEvent: (type: string, data: unknown) => void,
   signal?: AbortSignal,
 ) {
-  const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/feedback/generate`, {
+  const path = payload.conversationId
+    ? `/api/sessions/${sessionId}/conversations/${payload.conversationId}/feedback/generate`
+    : `/api/sessions/${sessionId}/feedback/generate`;
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

@@ -482,10 +482,27 @@ async def stream_feedback(
     user_message = "\n\n".join(user_parts)
 
     model_ctx = await _get_context_len(model_name)
-    ok, _ = fits_context(
+    ok, remaining = fits_context(
         system=system,
         document=document_for_budget,
         history="",
+        user_message=user_message,
+        model_context=model_ctx,
+    )
+    history = ""
+    if conversation is not None:
+        prior = (
+            db.query(ConversationMessage)
+            .filter(ConversationMessage.conversation_id == conversation.id)
+            .order_by(ConversationMessage.created_at.asc())
+            .all()
+        )
+        history_budget = max(0, remaining // 2)
+        history = _history_text(prior, history_budget)
+    ok, _ = fits_context(
+        system=system,
+        document=document_for_budget,
+        history=history,
         user_message=user_message,
         model_context=model_ctx,
     )
@@ -511,9 +528,11 @@ async def stream_feedback(
         },
     )
 
+    history_block = f"GESPREK:\n{history}\n" if history.strip() else ""
     prompt = (
         f"DOCUMENTCONTEXT:\n{doc_text}\n\n"
         f"{memory_block}"
+        f"{history_block}"
         f"{user_message}"
     )
 
@@ -524,7 +543,12 @@ async def stream_feedback(
     def _save_feedback_progress() -> str:
         display_text = strip_markers_from_stream(full_response).strip()
         if display_text:
-            set_feedback_draft(db, session.id, display_text)
+            set_feedback_draft(
+                db,
+                session.id,
+                display_text,
+                conversation_id=conversation.id if conversation else None,
+            )
         return display_text
 
     try:

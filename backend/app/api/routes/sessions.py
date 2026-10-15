@@ -72,6 +72,7 @@ def _conversation_payload(db: Session, conversation) -> dict:
         "title": conversation.title,
         "updatedAt": conversation.updated_at.isoformat() if conversation.updated_at else None,
         "sourceIds": conversation_source_ids(db, conversation.id),
+        "feedbackDraft": conversation.feedback_draft or "",
     }
 
 
@@ -213,6 +214,50 @@ def get_feedback(session_id: str, db: Session = Depends(get_db)) -> dict:
 @router.put("/{session_id}/feedback")
 def put_feedback(session_id: str, body: FeedbackDraftUpdate, db: Session = Depends(get_db)) -> dict:
     return {"content": set_feedback_draft(db, session_id, body.content)}
+
+
+@router.get("/{session_id}/conversations/{conversation_id}/feedback")
+def get_conversation_feedback(
+    session_id: str, conversation_id: str, db: Session = Depends(get_db)
+) -> dict:
+    return {"content": get_feedback_draft(db, session_id, conversation_id)}
+
+
+@router.put("/{session_id}/conversations/{conversation_id}/feedback")
+def put_conversation_feedback(
+    session_id: str,
+    conversation_id: str,
+    body: FeedbackDraftUpdate,
+    db: Session = Depends(get_db),
+) -> dict:
+    return {"content": set_feedback_draft(db, session_id, body.content, conversation_id)}
+
+
+@router.post("/{session_id}/conversations/{conversation_id}/feedback/generate")
+async def generate_conversation_feedback(
+    session_id: str,
+    conversation_id: str,
+    body: FeedbackGenerateRequest,
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    session = get_session_or_404(db, session_id)
+    conversation = get_conversation_or_404(db, session_id, conversation_id)
+
+    async def event_generator():
+        async for event_type, payload in stream_feedback(
+            db,
+            session,
+            body.action,
+            body.model,
+            body.draft,
+            instructions=body.instructions,
+            selection=body.selection,
+            conversation=conversation,
+            source_ids=body.sourceIds,
+        ):
+            yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.post("/{session_id}/feedback/generate")

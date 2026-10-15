@@ -58,7 +58,7 @@ export function FeedbackPanel({
     setCitations([]);
     setError(null);
     setContextLabel(null);
-  }, [sessionId]);
+  }, [sessionId, conversationId]);
 
   const studentSources = sources.filter((s) => !s.isReference);
   const referenceSources = sources.filter((s) => s.isReference);
@@ -122,6 +122,9 @@ export function FeedbackPanel({
           }
           if (type === "citations" && data && typeof data === "object" && "items" in data) {
             setCitations((data as { items: CitationDto[] }).items);
+          }
+          if (type === "done" && streamed.trim()) {
+            onSaveDraft(streamed);
           }
           if (type === "error" && data && typeof data === "object" && "message" in data) {
             setError(String((data as { message: string }).message));

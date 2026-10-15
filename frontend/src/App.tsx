@@ -86,6 +86,7 @@ export default function App() {
       preferredConversationId.current = null;
       const loaded = conversationId ? await getMessages(sessionId, conversationId) : [];
       if (seq !== loadSeq.current) return next;
+      const activeConv = next.conversations.find((c) => c.id === conversationId);
       setDetail(next);
       setActiveConversationId(conversationId);
       setMessages(loaded);
@@ -98,7 +99,9 @@ export default function App() {
         return firstStudent?.id ?? next.sources[0]?.id ?? null;
       });
       if (!memoryDirty.current) setMemory(next.memory ?? "");
-      if (!feedbackDirty.current) setFeedbackDraft(next.feedbackDraft ?? "");
+      if (!feedbackDirty.current) {
+        setFeedbackDraft(activeConv?.feedbackDraft ?? next.feedbackDraft ?? "");
+      }
       const pending = next.sources.some(
         (source) => source.status === "queued" || source.status === "processing",
       );
@@ -131,8 +134,9 @@ export default function App() {
     memoryDirty.current = false;
     feedbackDirty.current = false;
     setMemory(detail.memory ?? "");
-    setFeedbackDraft(detail.feedbackDraft ?? "");
-  }, [detail]);
+    const activeConv = detail.conversations.find((c) => c.id === activeConversationId);
+    setFeedbackDraft(activeConv?.feedbackDraft ?? detail.feedbackDraft ?? "");
+  }, [detail, activeConversationId]);
 
   useEffect(() => {
     if (detail?.preferredModel && !model) {
@@ -269,6 +273,9 @@ export default function App() {
 
   function openSession(id: string) {
     if (id === activeSessionId) return;
+    if (feedbackDirty.current) {
+      void persistFeedback();
+    }
     labelsSessionId.current = null;
     memoryDirty.current = false;
     feedbackDirty.current = false;
@@ -280,6 +287,9 @@ export default function App() {
   }
 
   async function openConversation(sessionId: string, conversationId: string) {
+    if (feedbackDirty.current) {
+      await persistFeedback();
+    }
     setHighlight(null);
     setRightTab("chat");
     if (sessionId !== activeSessionId) {
@@ -293,7 +303,10 @@ export default function App() {
       return;
     }
     const seq = ++loadSeq.current;
+    feedbackDirty.current = false;
     setActiveConversationId(conversationId);
+    const targetConv = detail?.conversations.find((c) => c.id === conversationId);
+    setFeedbackDraft(targetConv?.feedbackDraft ?? "");
     setMessages([]);
     const loaded = await getMessages(sessionId, conversationId);
     if (seq !== loadSeq.current) return;
@@ -301,17 +314,23 @@ export default function App() {
   }
 
   async function handleCreateConversation(sessionId: string) {
+    if (feedbackDirty.current) {
+      await persistFeedback();
+    }
     const created = await createConversation(sessionId);
     await refreshSessions();
     if (sessionId !== activeSessionId) {
       labelsSessionId.current = null;
       memoryDirty.current = false;
+      feedbackDirty.current = false;
       preferredConversationId.current = created.id;
       setActiveConversationId(created.id);
+      setFeedbackDraft(created.feedbackDraft ?? "");
       setMessages([]);
       setActiveSessionId(sessionId);
       return;
     }
+    feedbackDirty.current = false;
     await loadDetail(sessionId, { conversationId: created.id, sourceId: activeSourceId });
   }
 
@@ -546,16 +565,26 @@ export default function App() {
   }
 
   async function persistFeedback(overrideValue?: string) {
-    if (!activeSessionId) return;
+    if (!activeSessionId || !activeConversationId) return;
     if (overrideValue === undefined && !feedbackDirty.current) return;
     const snapshot = overrideValue !== undefined ? overrideValue : feedbackDraft;
     const sessionId = activeSessionId;
+    const conversationId = activeConversationId;
     feedbackDirty.current = false;
     try {
-      const saved = await saveFeedbackDraft(sessionId, snapshot);
-      setFeedbackDraft(saved.content);
+      const saved = await saveFeedbackDraft(sessionId, conversationId, snapshot);
+      if (activeConversationId === conversationId) {
+        setFeedbackDraft(saved.content);
+      }
       setDetail((current) =>
-        current && current.id === sessionId ? { ...current, feedbackDraft: saved.content } : current,
+        current && current.id === sessionId
+          ? {
+              ...current,
+              conversations: current.conversations.map((c) =>
+                c.id === conversationId ? { ...c, feedbackDraft: saved.content } : c,
+              ),
+            }
+          : current,
       );
     } catch (error) {
       fail(error, "Feedback opslaan mislukt");
@@ -563,7 +592,7 @@ export default function App() {
   }
 
   async function addToFeedback(content: string) {
-    if (!activeSessionId) return;
+    if (!activeSessionId || !activeConversationId) return;
     const next = feedbackDraft.trim() ? `${feedbackDraft.trim()}\n\n${content.trim()}` : content.trim();
     setFeedbackDraft(next);
     feedbackDirty.current = false;
@@ -810,6 +839,18 @@ export default function App() {
                     onDraftChange={(value) => {
                       feedbackDirty.current = true;
                       setFeedbackDraft(value);
+                      if (activeConversationId) {
+                        setDetail((current) =>
+                          current
+                            ? {
+                                ...current,
+                                conversations: current.conversations.map((c) =>
+                                  c.id === activeConversationId ? { ...c, feedbackDraft: value } : c,
+                                ),
+                              }
+                            : current,
+                        );
+                      }
                     }}
                     onSaveDraft={persistFeedback}
                     onCitationClick={onCitationClick}

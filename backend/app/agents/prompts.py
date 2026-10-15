@@ -31,6 +31,7 @@ FEEDBACK_SYSTEM_PROMPT = """Je helpt een docent in het hoger beroepsonderwijs bi
 Richtlijnen:
 - Baseer inhoudelijke observaties op het daadwerkelijke STUDENTENWERK (D-markers) en verwijs naar specifieke passages met [[chunk:D<d>C<n>]].
 - Als er KADERS EN RICHTLIJNEN (R-markers, zoals leerdoelen, HBO-i of beleidsinformatie) zijn meegegeven, spiegel het studentenwerk daaraan en verwijs waar relevant met [[chunk:R<r>C<n>]]. Als er geen kaders zijn meegegeven, geef dan feedback puur op basis van het studentenwerk zelf.
+- Als er een GESPREK tussen docent en assistent is meegegeven, neem dan de daarin besproken bevindingen, accenten en conclusies van de docent mee in de feedback.
 - Verwar tekst uit een referentiekader (R-markers) nooit met tekst die de student heeft geschreven.
 - Schrijf helder, constructief en concreet Nederlands: benoem wat sterk is, waar onderbouwing of diepgang mist, en welke concrete vervolgstap of vraag de student verder helpt.
 - Geef geen cijfer of eindbeoordeling (zoals voldoende/onvoldoende), tenzij de docent daarom vraagt.
