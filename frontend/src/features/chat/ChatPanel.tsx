@@ -33,6 +33,24 @@ interface Props {
   onClearSelection: () => void;
 }
 
+interface StreamState {
+  streaming: string;
+  pendingCitations: CitationDto[];
+  contextLabel: string | null;
+  busy: boolean;
+  error: string | null;
+  mode: ChatMode;
+}
+
+const EMPTY_STREAM: StreamState = {
+  streaming: "",
+  pendingCitations: [],
+  contextLabel: null,
+  busy: false,
+  error: null,
+  mode: "spar",
+};
+
 export function ChatPanel({
   sessionId,
   conversationId,
@@ -56,11 +74,7 @@ export function ChatPanel({
 }: Props) {
   const [mode, setMode] = useState<ChatMode>("spar");
   const [input, setInput] = useState("");
-  const [streaming, setStreaming] = useState("");
-  const [contextLabel, setContextLabel] = useState<string | null>(null);
-  const [pendingCitations, setPendingCitations] = useState<CitationDto[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [streams, setStreams] = useState<Record<string, StreamState>>({});
   const [titleDraft, setTitleDraft] = useState(conversationTitle);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -68,6 +82,22 @@ export function ChatPanel({
   const stickToBottomRef = useRef(true);
   const prevMessageCountRef = useRef(messages.length);
   const wasStreamingRef = useRef(false);
+
+  const currentStream = conversationId ? (streams[conversationId] ?? EMPTY_STREAM) : EMPTY_STREAM;
+  const { streaming, pendingCitations, contextLabel, busy, error } = currentStream;
+
+  function patchStream(
+    targetConversationId: string,
+    updater: (prev: StreamState) => Partial<StreamState>,
+  ) {
+    setStreams((prev) => {
+      const current = prev[targetConversationId] ?? EMPTY_STREAM;
+      return {
+        ...prev,
+        [targetConversationId]: { ...current, ...updater(current) },
+      };
+    });
+  }
 
   useEffect(() => {
     setTitleDraft(conversationTitle);
@@ -119,8 +149,6 @@ export function ChatPanel({
 
   useEffect(() => {
     if (!conversationId) return;
-    setError(null);
-    setStreaming("");
     stickToBottomRef.current = true;
     scrollChatToBottom("auto");
   }, [conversationId]);
@@ -128,18 +156,23 @@ export function ChatPanel({
 
   async function send() {
     if (!sessionId || !conversationId || !model || !input.trim()) return;
+    const sessionAtSend = sessionId;
     const convAtSend = conversationId;
-    setBusy(true);
-    setError(null);
-    setStreaming("");
-    setPendingCitations([]);
+    const modeAtSend = mode;
+    patchStream(convAtSend, () => ({
+      busy: true,
+      error: null,
+      streaming: "",
+      pendingCitations: [],
+      mode: modeAtSend,
+    }));
     const userText = input.trim();
     setInput("");
     const userMsg: MessageDto = {
       id: `temp-${Date.now()}`,
       role: "user",
       content: userText,
-      mode,
+      mode: modeAtSend,
       createdAt: new Date().toISOString(),
       citations: [],
     };
@@ -148,18 +181,21 @@ export function ChatPanel({
 
     try {
       await streamChat(
-        sessionId,
+        sessionAtSend,
         convAtSend,
         {
           message: userText,
-          mode,
+          mode: modeAtSend,
           model,
           selection: selection?.text,
           chunkId: selection?.chunkId,
         },
         (type, data) => {
           if (type === "token" && data && typeof data === "object" && "text" in data) {
-            setStreaming((s) => s + String((data as { text: string }).text));
+            const chunk = String((data as { text: string }).text);
+            patchStream(convAtSend, (prev) => ({
+              streaming: prev.streaming + chunk,
+            }));
           }
           if (type === "context" && data && typeof data === "object" && "strategy" in data) {
             const strat = (data as { strategy: string }).strategy;
@@ -169,30 +205,43 @@ export function ChatPanel({
                 ? (data as { skipped: string[] }).skipped
                 : [];
               const base = count > 1 ? `Gebaseerd op ${count} documenten` : "Gebaseerd op volledig document";
-              setContextLabel(
-                skipped.length > 0 ? `${base}. Nog niet meegenomen: ${skipped.join(", ")}` : base,
-              );
+              patchStream(convAtSend, () => ({
+                contextLabel: skipped.length > 0 ? `${base}. Nog niet meegenomen: ${skipped.join(", ")}` : base,
+              }));
             }
           }
           if (type === "citations" && data && typeof data === "object" && "items" in data) {
-            setPendingCitations((data as { items: CitationDto[] }).items);
+            patchStream(convAtSend, () => ({
+              pendingCitations: (data as { items: CitationDto[] }).items,
+            }));
           }
           if (type === "error" && data && typeof data === "object" && "message" in data) {
-            setError(String((data as { message: string }).message));
+            patchStream(convAtSend, () => ({
+              error: String((data as { message: string }).message),
+            }));
           }
         },
       );
-      onClearSelection();
+      if (conversationIdRef.current === convAtSend) {
+        onClearSelection();
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Chat mislukt");
+      patchStream(convAtSend, () => ({
+        error: e instanceof Error ? e.message : "Chat mislukt",
+      }));
     } finally {
-      setBusy(false);
-      if (sessionId && conversationIdRef.current === convAtSend) {
+      try {
         const { getMessages } = await import("../../services/api");
-        const serverMsgs = await getMessages(sessionId, convAtSend);
-        onMessagesChange(serverMsgs);
-        setStreaming("");
-        setPendingCitations([]);
+        const serverMsgs = await getMessages(sessionAtSend, convAtSend);
+        if (conversationIdRef.current === convAtSend) {
+          onMessagesChange(serverMsgs);
+        }
+      } finally {
+        patchStream(convAtSend, () => ({
+          busy: false,
+          streaming: "",
+          pendingCitations: [],
+        }));
       }
     }
   }
@@ -203,7 +252,7 @@ export function ChatPanel({
       id: "streaming",
       role: "assistant",
       content: streaming,
-      mode,
+      mode: currentStream.mode,
       createdAt: new Date().toISOString(),
       citations: pendingCitations,
     });

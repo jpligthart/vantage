@@ -75,14 +75,17 @@ export default function App() {
       const seq = ++loadSeq.current;
       const next = await getSession(sessionId);
       if (seq !== loadSeq.current) return next;
-      setDetail(next);
       const wanted = prefer?.conversationId ?? preferredConversationId.current;
       const conversationId =
         wanted && next.conversations.some((c) => c.id === wanted)
           ? wanted
           : next.conversations[0]?.id ?? null;
       preferredConversationId.current = null;
+      const loaded = conversationId ? await getMessages(sessionId, conversationId) : [];
+      if (seq !== loadSeq.current) return next;
+      setDetail(next);
       setActiveConversationId(conversationId);
+      setMessages(loaded);
       setActiveSourceId((current) => {
         if (prefer?.sourceId && next.sources.some((source) => source.id === prefer.sourceId)) {
           return prefer.sourceId;
@@ -92,11 +95,6 @@ export default function App() {
       });
       if (!memoryDirty.current) setMemory(next.memory ?? "");
       if (!feedbackDirty.current) setFeedbackDraft(next.feedbackDraft ?? "");
-      if (conversationId) {
-        const loaded = await getMessages(sessionId, conversationId);
-        if (seq !== loadSeq.current) return next;
-        setMessages(loaded);
-      } else setMessages([]);
       const pending = next.sources.some(
         (source) => source.status === "queued" || source.status === "processing",
       );
@@ -175,6 +173,7 @@ export default function App() {
     const src = await getSource(sourceId);
     labelsSessionId.current = null;
     setActiveSessionId(session.id);
+    setActiveConversationId(null);
     setMessages([]);
     setHighlight(null);
     setSelection(undefined);
@@ -269,6 +268,7 @@ export default function App() {
     feedbackDirty.current = false;
     setHighlight(null);
     setSelection(undefined);
+    setActiveConversationId(null);
     setMessages([]);
     setActiveSessionId(id);
   }
@@ -281,12 +281,17 @@ export default function App() {
       memoryDirty.current = false;
       feedbackDirty.current = false;
       preferredConversationId.current = conversationId;
+      setActiveConversationId(conversationId);
       setMessages([]);
       setActiveSessionId(sessionId);
       return;
     }
+    const seq = ++loadSeq.current;
     setActiveConversationId(conversationId);
-    setMessages(await getMessages(sessionId, conversationId));
+    setMessages([]);
+    const loaded = await getMessages(sessionId, conversationId);
+    if (seq !== loadSeq.current) return;
+    setMessages(loaded);
   }
 
   async function handleCreateConversation(sessionId: string) {
@@ -296,6 +301,7 @@ export default function App() {
       labelsSessionId.current = null;
       memoryDirty.current = false;
       preferredConversationId.current = created.id;
+      setActiveConversationId(created.id);
       setMessages([]);
       setActiveSessionId(sessionId);
       return;
@@ -670,8 +676,8 @@ export default function App() {
                   )}
                 </button>
               </div>
-              <div className="flex-1 min-h-0">
-                {rightTab === "chat" ? (
+              <div className="flex-1 min-h-0 flex flex-col">
+                <div className={rightTab === "chat" ? "flex-1 min-h-0" : "hidden"}>
                   <ChatPanel
                     sessionId={activeSessionId}
                     conversationId={activeConversationId}
@@ -696,7 +702,8 @@ export default function App() {
                     selection={selection}
                     onClearSelection={() => setSelection(undefined)}
                   />
-                ) : (
+                </div>
+                <div className={rightTab === "feedback" ? "flex-1 min-h-0" : "hidden"}>
                   <FeedbackPanel
                     sessionId={activeSessionId}
                     conversationId={activeConversationId}
@@ -712,7 +719,7 @@ export default function App() {
                     selection={selection}
                     onClearSelection={() => setSelection(undefined)}
                   />
-                )}
+                </div>
               </div>
             </section>
           }
