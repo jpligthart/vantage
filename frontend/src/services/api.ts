@@ -263,11 +263,13 @@ export async function streamFeedback(
     sourceIds?: string[];
   },
   onEvent: (type: string, data: unknown) => void,
+  signal?: AbortSignal,
 ) {
   const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/feedback/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   });
   await readSseStream(res, onEvent);
 }
@@ -320,11 +322,13 @@ export async function streamChat(
   conversationId: string,
   payload: { message: string; mode: ChatMode; model: string; selection?: string; chunkId?: string },
   onEvent: (type: string, data: unknown) => void,
+  signal?: AbortSignal,
 ) {
   const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/conversations/${conversationId}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   });
   await readSseStream(res, onEvent);
 }

@@ -4,9 +4,6 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
 import httpx
-from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
 from sqlalchemy.orm import Session
 
 from app.agents.citations import CitationStreamFilter, build_citation_items, strip_markers_from_stream
@@ -142,6 +139,52 @@ def _history_text(messages: list[ConversationMessage], budget_tokens: int) -> st
         parts.insert(0, line)
         used += t
     return "".join(parts)
+
+
+async def _stream_ollama_tokens(
+    *,
+    ollama_host: str,
+    model_name: str,
+    system: str,
+    prompt: str,
+    timeout_seconds: int,
+) -> AsyncIterator[str]:
+    timeout = httpx.Timeout(
+        connect=15.0,
+        read=float(max(timeout_seconds, 120)),
+        write=30.0,
+        pool=15.0,
+    )
+    payload = {
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": True,
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream(
+            "POST",
+            f"{ollama_host.rstrip('/')}/api/chat",
+            json=payload,
+        ) as resp:
+            resp.raise_for_status()
+            async for raw_line in resp.aiter_lines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if item.get("error"):
+                    raise RuntimeError(str(item["error"]))
+                piece = (item.get("message") or {}).get("content") or ""
+                if piece:
+                    yield piece
+                if item.get("done") is True:
+                    return
 
 
 async def stream_chat(
@@ -310,19 +353,20 @@ async def stream_chat(
     last_saved_len = 0
 
     try:
-        provider = OpenAIProvider(base_url=settings.ollama_base_url, api_key="ollama")
-        model = OpenAIChatModel(model_name, provider=provider)
-        agent = Agent(model, system_prompt=system)
-
-        async with agent.run_stream(prompt) as result:
-            async for text in result.stream_text(delta=True):
-                full_response += text
-                cleaned = stream_filter.feed(text)
-                if cleaned:
-                    if assistant is None or len(full_response) - last_saved_len >= 120:
-                        _persist_progress()
-                        last_saved_len = len(full_response)
-                    yield ("token", {"text": cleaned})
+        async for text in _stream_ollama_tokens(
+            ollama_host=settings.ollama_host,
+            model_name=model_name,
+            system=system,
+            prompt=prompt,
+            timeout_seconds=settings.chat_timeout_seconds,
+        ):
+            full_response += text
+            cleaned = stream_filter.feed(text)
+            if cleaned:
+                if assistant is None or len(full_response) - last_saved_len >= 120:
+                    _persist_progress()
+                    last_saved_len = len(full_response)
+                yield ("token", {"text": cleaned})
         tail = stream_filter.flush()
         if tail:
             yield ("token", {"text": tail})
@@ -484,19 +528,20 @@ async def stream_feedback(
         return display_text
 
     try:
-        provider = OpenAIProvider(base_url=settings.ollama_base_url, api_key="ollama")
-        model = OpenAIChatModel(model_name, provider=provider)
-        agent = Agent(model, system_prompt=system)
-
-        async with agent.run_stream(prompt) as result:
-            async for text in result.stream_text(delta=True):
-                full_response += text
-                cleaned = stream_filter.feed(text)
-                if cleaned:
-                    if last_saved_len == 0 or len(full_response) - last_saved_len >= 120:
-                        _save_feedback_progress()
-                        last_saved_len = len(full_response)
-                    yield ("token", {"text": cleaned})
+        async for text in _stream_ollama_tokens(
+            ollama_host=settings.ollama_host,
+            model_name=model_name,
+            system=system,
+            prompt=prompt,
+            timeout_seconds=settings.chat_timeout_seconds,
+        ):
+            full_response += text
+            cleaned = stream_filter.feed(text)
+            if cleaned:
+                if last_saved_len == 0 or len(full_response) - last_saved_len >= 120:
+                    _save_feedback_progress()
+                    last_saved_len = len(full_response)
+                yield ("token", {"text": cleaned})
         tail = stream_filter.flush()
         if tail:
             yield ("token", {"text": tail})

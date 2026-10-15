@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Brain, ChevronDown, ChevronRight, FileCheck2, MessageSquare } from "lucide-react";
+import { Brain, ChevronDown, ChevronRight, FileCheck2, MessageSquare, Square } from "lucide-react";
 import type { ChatMode, CitationDto, MessageDto, SourceDto } from "../../types/domain";
 import { getMessages, streamChat, truncateMessagesFrom } from "../../services/api";
 import { cn } from "../../lib/utils";
@@ -100,6 +100,7 @@ export function ChatPanel({
   const stickToBottomRef = useRef(true);
   const prevMessageCountRef = useRef(messages.length);
   const wasStreamingRef = useRef(false);
+  const abortControllersRef = useRef<Record<string, AbortController>>({});
 
   const currentStream = conversationId ? (streams[conversationId] ?? EMPTY_STREAM) : EMPTY_STREAM;
   const { streaming, pendingCitations, contextLabel, busy, error } = currentStream;
@@ -172,11 +173,23 @@ export function ChatPanel({
   }, [conversationId]);
   const canSend = canType && input.trim().length > 0;
 
+  function stopStream() {
+    if (!conversationId) return;
+    const ctrl = abortControllersRef.current[conversationId];
+    if (ctrl) {
+      ctrl.abort();
+      delete abortControllersRef.current[conversationId];
+    }
+  }
+
   async function runStream(userText: string, baseMessages: MessageDto[]) {
     if (!sessionId || !conversationId || !model || !userText.trim()) return;
     const sessionAtSend = sessionId;
     const convAtSend = conversationId;
     const modeAtSend = mode;
+    abortControllersRef.current[convAtSend]?.abort();
+    const controller = new AbortController();
+    abortControllersRef.current[convAtSend] = controller;
     patchStream(convAtSend, () => ({
       busy: true,
       error: null,
@@ -237,15 +250,22 @@ export function ChatPanel({
             }));
           }
         },
+        controller.signal,
       );
       if (conversationIdRef.current === convAtSend) {
         onClearSelection();
       }
     } catch (e) {
-      patchStream(convAtSend, () => ({
-        error: e instanceof Error ? e.message : "Chat mislukt",
-      }));
+      const aborted = e instanceof DOMException && e.name === "AbortError";
+      if (!aborted) {
+        patchStream(convAtSend, () => ({
+          error: e instanceof Error ? e.message : "Chat mislukt",
+        }));
+      }
     } finally {
+      if (abortControllersRef.current[convAtSend] === controller) {
+        delete abortControllersRef.current[convAtSend];
+      }
       patchStream(convAtSend, () => ({
         busy: false,
       }));
@@ -495,8 +515,8 @@ export function ChatPanel({
       </div>
       <div className="p-3 border-t border-slate-800">
         <textarea
-          className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm min-h-[72px]"
-          placeholder="Stel een vraag..."
+          className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm min-h-[72px] disabled:opacity-60"
+          placeholder={busy ? "Antwoord wordt gegenereerd…" : "Stel een vraag..."}
           value={input}
           disabled={!canType}
           onChange={(e) => setInput(e.target.value)}
@@ -507,14 +527,26 @@ export function ChatPanel({
             }
           }}
         />
-        <button
-          type="button"
-          disabled={!canSend}
-          onClick={send}
-          className="mt-2 w-full py-2 rounded bg-amber-600 disabled:opacity-40 text-sm font-medium"
-        >
-          {busy ? "Bezig…" : "Versturen"}
-        </button>
+        {busy ? (
+          <button
+            type="button"
+            onClick={stopStream}
+            title="Stop het genereren en behoud het antwoord dat er al staat"
+            className="mt-2 w-full py-2 rounded bg-slate-800 hover:bg-slate-700 border border-amber-500/50 text-amber-200 text-sm font-medium inline-flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" aria-hidden />
+            Stoppen
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={!canSend}
+            onClick={send}
+            className="mt-2 w-full py-2 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-sm font-medium transition-colors"
+          >
+            Versturen
+          </button>
+        )}
       </div>
     </div>
   );
