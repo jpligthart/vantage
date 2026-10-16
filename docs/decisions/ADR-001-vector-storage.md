@@ -14,5 +14,5 @@ Use **sqlite-vec** in the same SQLite database as relational data in phase 2. Ph
 
 ## Consequences
 
-- Single backup path (`data/review_assistant.db` + files).
+- Single backup path (`data/vantage.db` + files).
 - If sqlite-vec limits are hit later, revisit a dedicated vector store.

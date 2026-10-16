@@ -65,7 +65,7 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-export DATA_DIR=../data DATABASE_URL=sqlite:///../data/review_assistant.db
+export DATA_DIR=../data DATABASE_URL=sqlite:///../data/vantage.db
 alembic upgrade head
 uvicorn app.main:app --reload --app-dir .
 ```
@@ -86,7 +86,7 @@ npm run generate-api-types
 
 ## Data
 
-Runtime files live in `./data` (gitignored): SQLite DB (`review_assistant.db`), uploaded sources, Docling JSON/HTML, and local OCR/layout model cache.
+Runtime files live in `./data` (gitignored): SQLite DB (`vantage.db`), uploaded sources, Docling JSON/HTML, and local OCR/layout model cache.
 
 ## Tests
 

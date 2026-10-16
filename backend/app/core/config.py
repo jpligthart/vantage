@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     data_dir: Path = Path("./data")
-    database_url: str = "sqlite:///./data/review_assistant.db"
+    database_url: str = "sqlite:///./data/vantage.db"
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_host: str = "http://localhost:11434"
     default_context_tokens: int = 8192

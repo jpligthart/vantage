@@ -24,7 +24,7 @@ services:
       - .env
     environment:
       DATA_DIR: /app/data
-      DATABASE_URL: sqlite:////app/data/review_assistant.db
+      DATABASE_URL: sqlite:////app/data/vantage.db
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_HOST: http://host.docker.internal:11434
       CORS_ORIGINS: http://127.0.0.1:${HOST_WEB_PORT:-7847},http://localhost:${HOST_WEB_PORT:-7847}
