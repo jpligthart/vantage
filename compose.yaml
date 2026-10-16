@@ -1,8 +1,8 @@
-name: vantage
+name: vantage-dev
 
 services:
   backend:
-    container_name: vantage-backend
+    container_name: vantage-backend-dev
     image: zotregistry.jelph.nl/fontysict/vantage-backend:${IMAGE_TAG:-latest}
     build:
       context: .
@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    container_name: vantage-frontend
+    container_name: vantage-frontend-dev
     image: zotregistry.jelph.nl/fontysict/vantage-frontend:${IMAGE_TAG:-latest}
     build:
       context: .
