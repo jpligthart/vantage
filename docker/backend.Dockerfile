@@ -15,15 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY backend/pyproject.toml backend/README.md /app/backend/
-RUN pip install --upgrade pip && pip install /app/backend
+RUN pip install --upgrade pip \
+    && pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+RUN pip install /app/backend
 
-COPY backend /app/backend
-RUN pip install -e /app/backend
+COPY --chown=1000:1000 backend /app/backend
+RUN pip install --no-deps -e /app/backend
 
 RUN useradd -m -u 1000 appuser \
     && mkdir -p /app/data/model-cache/huggingface \
     && mkdir -p /usr/local/lib/python3.12/site-packages/rapidocr/models \
-    && chown -R appuser:appuser /app /usr/local/lib/python3.12/site-packages/rapidocr/models
+    && chown -R appuser:appuser /app/data /usr/local/lib/python3.12/site-packages/rapidocr/models
 USER appuser
 WORKDIR /app/backend
 

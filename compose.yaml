@@ -8,7 +8,15 @@ services:
       context: .
       dockerfile: docker/backend.Dockerfile
       platforms:
+        - linux/arm64
         - linux/amd64
+      labels:
+        org.opencontainers.image.title: "Review Assistant Backend"
+        org.opencontainers.image.description: "FastAPI backend & Docling document processing for Review Assistant"
+        org.opencontainers.image.vendor: "Fontys ICT"
+        org.opencontainers.image.version: "${IMAGE_TAG:-0.1.0}"
+        org.opencontainers.image.source: "${OCI_IMAGE_SOURCE:-https://git.fontys.nl/fontysict/review-assistant}"
+        org.opencontainers.image.licenses: "MIT"
     # API only on the Compose network (browser reaches it via the frontend proxy).
     expose:
       - "8000"
@@ -40,7 +48,15 @@ services:
       dockerfile: docker/frontend.Dockerfile
       target: ${FRONTEND_TARGET:-prod}
       platforms:
+        - linux/arm64
         - linux/amd64
+      labels:
+        org.opencontainers.image.title: "Review Assistant Frontend"
+        org.opencontainers.image.description: "React web UI (Nginx) for Review Assistant"
+        org.opencontainers.image.vendor: "Fontys ICT"
+        org.opencontainers.image.version: "${IMAGE_TAG:-0.1.0}"
+        org.opencontainers.image.source: "${OCI_IMAGE_SOURCE:-https://git.fontys.nl/fontysict/review-assistant}"
+        org.opencontainers.image.licenses: "MIT"
     ports:
       - "127.0.0.1:${HOST_WEB_PORT:-7847}:${FRONTEND_INTERNAL_PORT:-80}"
     environment:
