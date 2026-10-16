@@ -621,7 +621,7 @@ export default function App() {
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-slate-100">
       <header className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-900 shrink-0">
-        <h1 className="font-semibold text-sm tracking-tight text-slate-100">Review Assistant</h1>
+        <h1 className="font-semibold text-sm tracking-tight text-slate-100">Vantage</h1>
         <div className="flex items-center gap-3">
           <button
             type="button"

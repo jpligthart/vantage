@@ -36,7 +36,7 @@ def _run_migrations() -> None:
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Review Assistant", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Vantage", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

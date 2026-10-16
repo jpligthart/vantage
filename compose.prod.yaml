@@ -1,9 +1,9 @@
-name: review-assistant
+name: vantage
 
 services:
   backend:
-    container_name: review-assistant-backend
-    image: zotregistry.jelph.nl/fontysict/review-assistant-backend:${IMAGE_TAG:-latest}
+    container_name: vantage-backend
+    image: zotregistry.jelph.nl/fontysict/vantage-backend:${IMAGE_TAG:-latest}
     pull_policy: always
     expose:
       - "8000"
@@ -29,8 +29,8 @@ services:
     restart: unless-stopped
 
   frontend:
-    container_name: review-assistant-frontend
-    image: zotregistry.jelph.nl/fontysict/review-assistant-frontend:${IMAGE_TAG:-latest}
+    container_name: vantage-frontend
+    image: zotregistry.jelph.nl/fontysict/vantage-frontend:${IMAGE_TAG:-latest}
     pull_policy: always
     ports:
       - "${HOST_WEB_PORT:-7847}:80"

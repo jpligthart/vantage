@@ -1,7 +1,7 @@
 [project]
-name = "review-assistant-backend"
+name = "vantage-backend"
 version = "0.1.0"
-description = "Review Assistant API"
+description = "Vantage API"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -1,1 +1,1 @@
-"""Review Assistant backend application."""
+"""Vantage backend application."""
