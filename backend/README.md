@@ -1,3 +1,3 @@
-# Review Assistant Backend
+# Vantage Backend
 
-FastAPI application for document analysis with local Ollama.
+FastAPI application for local document & portfolio analysis with Docling and Ollama.

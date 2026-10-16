@@ -1,14 +1,14 @@
-# Review Assistant
+# Vantage
 
-Local document review assistant for teachers (phase 1 MVP).
+Local document & portfolio analysis assistant for teachers and policy reviewers (phase 1 MVP).
 
 ## Prerequisites
 
-- macOS with [OrbStack](https://orbstack.dev/) or Docker Desktop
-- [Ollama](https://ollama.com/) running on the host (Apple Silicon)
+- macOS with [OrbStack](https://orbstack.dev/) or Docker Desktop, or Windows with Docker Desktop
+- [Ollama](https://ollama.com/) running on the host
 - Pull a model, e.g. `ollama pull qwen2.5:7b`
 
-## Quick start
+## Quick start (Docker Compose)
 
 1. Copy environment file:
 
@@ -16,21 +16,45 @@ Local document review assistant for teachers (phase 1 MVP).
    cp .env.example .env
    ```
 
-2. Start Ollama on your Mac (not in Docker).
+2. Start Ollama on your host machine (not in Docker).
 
-3. Build and run:
+3. Build and run locally:
 
    ```bash
-   docker compose up --build
+   docker compose up -d --build
    ```
 
 4. Open [http://127.0.0.1:7847](http://127.0.0.1:7847) (change `HOST_WEB_PORT` in `.env` if needed).
 
 5. Drag a PDF or DOCX onto the window, pick an Ollama model, wait for processing, then chat.
 
-API docs (via Vite proxy, same port): [http://127.0.0.1:7847/docs](http://127.0.0.1:7847/docs)
+With Docker Compose, the backend is **not** published directly on the host; only `127.0.0.1:7847` is exposed and proxies `/api/` to the backend container.
 
-With Docker Compose, the backend is **not** published on the host; only `127.0.0.1:7847` is exposed.
+## Building & Publishing Images (Multi-Arch)
+
+`compose.yaml` is configured to build multi-architecture (`linux/arm64` + `linux/amd64`) images with OCI metadata labels for `zotregistry.jelph.nl`:
+
+- `zotregistry.jelph.nl/fontysict/vantage-backend:latest`
+- `zotregistry.jelph.nl/fontysict/vantage-frontend:latest`
+
+```bash
+# Log in to the registry
+docker login zotregistry.jelph.nl
+
+# Build multi-arch images and push directly
+docker compose build --push
+```
+
+## Production / Pre-built Deployment
+
+To run Vantage from pre-built registry images without cloning the full repository, copy `compose.prod.yaml` and `.env.example` (as `.env`) to a folder and run:
+
+```bash
+docker compose -f compose.prod.yaml pull
+docker compose -f compose.prod.yaml up -d
+```
+
+All persistent data (SQLite database, uploaded documents, Docling output, and HuggingFace model cache) is stored in `./data` relative to the Compose file.
 
 ## Local development (without Docker)
 
@@ -62,11 +86,7 @@ npm run generate-api-types
 
 ## Data
 
-Runtime files live in `./data` (gitignored): SQLite DB, uploaded sources, Docling JSON/HTML.
-
-## Windows note
-
-Primary target is macOS + OrbStack. On Windows, ensure `host.docker.internal` resolves for Ollama from containers.
+Runtime files live in `./data` (gitignored): SQLite DB (`review_assistant.db`), uploaded sources, Docling JSON/HTML, and local OCR/layout model cache.
 
 ## Tests
 

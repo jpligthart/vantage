@@ -1,13 +1,13 @@
-# Requirements & Ontwerp — Document & Portfolio Review Assistant
+# Requirements & Ontwerp — Vantage (Document & Portfolio Review Assistant)
 
 **Versie:** 0.1  
 **Status:** Concept voor implementatie in Cursor  
-**Platform:** macOS (Apple Silicon), Docker / OrbStack, lokale Ollama  
-**Werknaam:** Review Assistant
+**Platform:** macOS (Apple Silicon) / Windows, Docker / OrbStack, lokale Ollama  
+**Naam:** Vantage
 
 ## 1. Doel en uitgangspunten
 
-Review Assistant is een lokale AI-applicatie die docenten ondersteunt bij het analyseren van studentenwerk.
+Vantage is een lokale AI-applicatie die docenten en reviewers ondersteunt bij het analyseren van studentenwerk, portfolio's en beleidsstukken.
 
 De applicatie helpt bij het begrijpen van documenten, vinden van relevante informatie, onderzoeken van onderbouwingen en kritisch bespreken van observaties.
 
