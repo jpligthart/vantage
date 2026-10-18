@@ -890,6 +890,7 @@ export default function App() {
                   <FeedbackPanel
                     sessionId={activeSessionId}
                     conversationId={activeConversationId}
+                    conversationTitle={conversation?.title ?? ""}
                     model={model}
                     sources={sources}
                     draft={feedbackDraft}
@@ -911,6 +912,7 @@ export default function App() {
                     }}
                     onSaveDraft={persistFeedback}
                     onCitationClick={onCitationClick}
+                    onRenameConversation={handleRenameConversation}
                     selection={selection}
                     onClearSelection={() => setSelection(undefined)}
                   />
