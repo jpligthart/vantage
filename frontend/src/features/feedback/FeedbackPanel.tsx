@@ -164,9 +164,9 @@ export function FeedbackPanel({
   }
 
   return (
-    <div className="flex flex-col h-full border-l border-slate-800 bg-slate-950/20">
+    <div className="flex flex-col h-full bg-slate-950/20">
       {/* Context & controls header */}
-      <div className="border-b border-slate-800 bg-slate-900/90 px-3 py-2.5 space-y-2.5 shrink-0">
+      <div className="border-b border-slate-800 bg-slate-900/90 px-3 py-2 space-y-1.5 shrink-0">
         {/* Source and framework toggles */}
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 flex-wrap">

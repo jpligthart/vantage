@@ -828,7 +828,7 @@ export default function App() {
           }
           trailing={
             <section className="min-h-0 flex flex-col h-full">
-              <div className="flex items-center gap-1 px-3 pt-2 border-b border-slate-800 border-l bg-slate-900 shrink-0">
+              <div className="box-content flex items-end gap-1 px-3 h-10 border-b border-slate-800 bg-slate-900 shrink-0">
                 <button
                   type="button"
                   onClick={() => setRightTab("chat")}

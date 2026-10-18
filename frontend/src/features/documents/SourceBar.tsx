@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, FileText, FolderOpen, Pin, Plus, X } from "lucide-react";
+import { BookOpen, ChevronDown, FileText, FolderOpen, Pin, Plus, X } from "lucide-react";
 import { ImportActions } from "../import/ImportActions";
 import type { SourceDto } from "../../types/domain";
 
@@ -19,6 +19,8 @@ interface Props {
   onOpenLibrary: () => void;
 }
 
+const COLLAPSED_KEY = "review-assistant-sourcebar-collapsed";
+
 export function SourceBar({
   sources,
   activeSourceId,
@@ -37,6 +39,7 @@ export function SourceBar({
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [titleDraft, setTitleDraft] = useState(sessionTitle);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) !== "0");
   const menuRef = useRef<HTMLDivElement>(null);
 
   const attached = new Set(sources.map((source) => source.id));
@@ -61,7 +64,7 @@ export function SourceBar({
   return (
     <div className="border-b border-slate-800 bg-slate-900/90 shrink-0">
       {/* Row 1: Session header */}
-      <div className="flex items-center justify-between gap-2 px-3 pt-2.5 pb-1.5">
+      <div className="flex items-center justify-between gap-2 px-3 h-10">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <FolderOpen className="w-4 h-4 text-amber-500/80 shrink-0" aria-hidden />
           <input
@@ -80,71 +83,27 @@ export function SourceBar({
             }}
           />
         </div>
-        <span className="text-[11px] text-slate-500 shrink-0">
+        <button
+          type="button"
+          onClick={() =>
+            setCollapsed((value) => {
+              localStorage.setItem(COLLAPSED_KEY, value ? "0" : "1");
+              return !value;
+            })
+          }
+          className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 shrink-0 transition-colors"
+          title={collapsed ? "Bronnen tonen" : "Bronnen inklappen"}
+          aria-expanded={!collapsed}
+        >
           {sources.length} {sources.length === 1 ? "bron" : "bronnen"}
-        </span>
-      </div>
-
-      {/* Row 2: Source tabs + Add button */}
-      <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
-          {sources.map((source) => {
-            const active = source.id === activeSourceId;
-            const isRef = Boolean(source.isReference);
-            return (
-              <div
-                key={source.id}
-                className={`group flex items-center min-w-0 max-w-[min(18rem,100%)] rounded-md border text-xs transition-colors ${
-                  active
-                    ? "border-amber-500/80 bg-amber-500/10 text-amber-100 font-medium"
-                    : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => onSelect(source.id)}
-                  className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 truncate text-left"
-                  title={source.name}
-                >
-                  <FileText className="w-3.5 h-3.5 shrink-0 opacity-70" aria-hidden />
-                  <span className="truncate">
-                    {source.status === "failed" ? "⚠ " : ""}
-                    {source.name}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onToggleReference(source.id, !isRef)}
-                  title={
-                    isRef
-                      ? "Dit document dient als referentie/context (bijv. HBO-i, beleid, opdracht). De AI weet dat dit géén tekst van de student is. Klik om als studentenwerk te behandelen."
-                      : "Markeer als referentie/context (bijv. HBO-i, beleidsdocument, opdrachtomschrijving) zodat de AI dit niet aanziet voor werk van de student."
-                  }
-                  className={`px-1.5 py-0.5 my-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 inline-flex items-center gap-1 ${
-                    isRef
-                      ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
-                      : "border-transparent text-slate-500 opacity-0 group-hover:opacity-100 hover:border-slate-700 hover:text-slate-300"
-                  }`}
-                >
-                  {source.isDefault && <Pin className="w-2.5 h-2.5 text-amber-300" aria-hidden />}
-                  Referentie
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDetach(source.id)}
-                  className="pr-2 pl-1 py-1 text-slate-500 hover:text-red-400 transition-colors"
-                  title="Loskoppelen van deze sessie"
-                  aria-label={`${source.name} loskoppelen`}
-                >
-                  <X className="w-3 h-3" aria-hidden />
-                </button>
-              </div>
-            );
-          })}
-        </div>
+          <ChevronDown
+            className={`w-3.5 h-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+            aria-hidden
+          />
+        </button>
 
         {/* Add source popover */}
-        <div className="relative" ref={menuRef}>
+        <div className="relative shrink-0" ref={menuRef}>
           <button
             type="button"
             onClick={() => setAddMenuOpen((open) => !open)}
@@ -155,7 +114,7 @@ export function SourceBar({
           </button>
 
           {addMenuOpen && (
-            <div className="absolute left-0 top-full mt-1.5 z-30 w-64 rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-xl space-y-1.5">
+            <div className="absolute right-0 top-full mt-1.5 z-30 w-64 rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-xl space-y-1.5">
               <div className="text-[11px] font-medium uppercase tracking-wider text-slate-500 px-2 py-0.5">
                 Aan deze sessie koppelen
               </div>
@@ -224,6 +183,65 @@ export function SourceBar({
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Row 2: Source tabs */}
+      <div className={`${collapsed ? "hidden" : "flex"} items-center gap-1.5 px-3 pb-2 flex-wrap min-w-0`}>
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+          {sources.map((source) => {
+            const active = source.id === activeSourceId;
+            const isRef = Boolean(source.isReference);
+            return (
+              <div
+                key={source.id}
+                className={`group flex items-center min-w-0 max-w-[min(18rem,100%)] rounded-md border text-xs transition-colors ${
+                  active
+                    ? "border-amber-500/80 bg-amber-500/10 text-amber-100 font-medium"
+                    : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onSelect(source.id)}
+                  className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 truncate text-left"
+                  title={source.name}
+                >
+                  <FileText className="w-3.5 h-3.5 shrink-0 opacity-70" aria-hidden />
+                  <span className="truncate">
+                    {source.status === "failed" ? "⚠ " : ""}
+                    {source.name}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleReference(source.id, !isRef)}
+                  title={
+                    isRef
+                      ? "Dit document dient als referentie/context (bijv. HBO-i, beleid, opdracht). De AI weet dat dit géén tekst van de student is. Klik om als studentenwerk te behandelen."
+                      : "Markeer als referentie/context (bijv. HBO-i, beleidsdocument, opdrachtomschrijving) zodat de AI dit niet aanziet voor werk van de student."
+                  }
+                  className={`px-1.5 py-0.5 my-0.5 rounded text-[10px] font-medium border transition-colors shrink-0 inline-flex items-center gap-1 ${
+                    isRef
+                      ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
+                      : "border-transparent text-slate-500 opacity-0 group-hover:opacity-100 hover:border-slate-700 hover:text-slate-300"
+                  }`}
+                >
+                  {source.isDefault && <Pin className="w-2.5 h-2.5 text-amber-300" aria-hidden />}
+                  Referentie
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDetach(source.id)}
+                  className="pr-2 pl-1 py-1 text-slate-500 hover:text-red-400 transition-colors"
+                  title="Loskoppelen van deze sessie"
+                  aria-label={`${source.name} loskoppelen`}
+                >
+                  <X className="w-3 h-3" aria-hidden />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

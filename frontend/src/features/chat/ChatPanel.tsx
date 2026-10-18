@@ -69,6 +69,8 @@ const EMPTY_STREAM: StreamState = {
   mode: "spar",
 };
 
+const SOURCES_COLLAPSED_KEY = "review-assistant-chat-sources-collapsed";
+
 export function ChatPanel({
   sessionId,
   conversationId,
@@ -95,6 +97,9 @@ export function ChatPanel({
   const [streams, setStreams] = useState<Record<string, StreamState>>({});
   const [titleDraft, setTitleDraft] = useState(conversationTitle);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [sourcesCollapsed, setSourcesCollapsed] = useState(
+    () => localStorage.getItem(SOURCES_COLLAPSED_KEY) !== "0",
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
@@ -347,7 +352,7 @@ export function ChatPanel({
   const activeMode = MODES.find((m) => m.id === mode) ?? MODES[2];
 
   return (
-    <div className="flex flex-col h-full border-l border-slate-800 bg-slate-950/20">
+    <div className="flex flex-col h-full bg-slate-950/20">
       <div className="border-b border-slate-800 bg-slate-900/90 px-3 py-2 space-y-1.5 shrink-0">
         {/* Row 1: Conversation Title + Mode Selector */}
         <div className="flex items-center justify-between gap-2">
@@ -397,24 +402,46 @@ export function ChatPanel({
           <span className="text-amber-400/90 font-medium">{activeMode.label}:</span> {activeMode.summary}
         </p>
 
-        {/* Row 2: Context Sources + Session Memory toggle */}
-        <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+        {/* Row 2: Context Sources + Session Memory */}
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0 pt-0.5">
           {sources.length > 0 ? (
-            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-              <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 mr-0.5">
+            <div className="contents">
+              <button
+                type="button"
+                onClick={() =>
+                  setSourcesCollapsed((value) => {
+                    localStorage.setItem(SOURCES_COLLAPSED_KEY, value ? "0" : "1");
+                    return !value;
+                  })
+                }
+                className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 mr-0.5 transition-colors"
+                title={sourcesCollapsed ? "Bronnen tonen" : "Bronnen inklappen"}
+                aria-expanded={!sourcesCollapsed}
+              >
                 <FileCheck2 className="w-3.5 h-3.5" aria-hidden />
                 Meenemen:
-              </span>
-              {sources.map((source) => {
+                {sourcesCollapsed && (
+                  <span className="text-slate-400">
+                    {pinnedSourceIds.length === 0 ? sources.length : pinnedSourceIds.length}/{sources.length}
+                  </span>
+                )}
+                <ChevronDown
+                  className={cn("w-3.5 h-3.5 transition-transform", sourcesCollapsed && "-rotate-90")}
+                  aria-hidden
+                />
+              </button>
+              {!sourcesCollapsed && sources.map((source) => {
                 const checked = pinnedSourceIds.length === 0 || pinnedSourceIds.includes(source.id);
                 return (
                   <button
                     key={source.id}
                     type="button"
                     onClick={() => onToggleSource(source.id)}
-                    title={checked ? `${source.name} wordt meegenomen in dit gesprek` : `${source.name} staat uit voor dit gesprek`}
+                    title={`${source.name}${source.isReference ? " (referentie)" : ""} ${
+                      checked ? "wordt meegenomen in dit gesprek" : "staat uit voor dit gesprek"
+                    }`}
                     className={cn(
-                      "inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border max-w-[13rem] transition-colors",
+                      "inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full border max-w-[14rem] transition-colors",
                       checked
                         ? source.isReference
                           ? "border-sky-500/60 bg-sky-500/15 text-sky-200"
@@ -429,9 +456,6 @@ export function ChatPanel({
                       )}
                     />
                     <span className="truncate">{source.name}</span>
-                    {source.isReference && (
-                      <span className="text-[10px] opacity-80 shrink-0">(Referentie)</span>
-                    )}
                   </button>
                 );
               })}
@@ -440,20 +464,23 @@ export function ChatPanel({
             <span className="text-xs text-slate-500">Geen bronnen gekoppeld</span>
           )}
 
+          <span className="text-slate-700 text-xs" aria-hidden>
+            ·
+          </span>
           <button
             type="button"
             disabled={!sessionId}
             onClick={() => setMemoryOpen((open) => !open)}
             className={cn(
-              "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border transition-colors shrink-0 ml-auto",
+              "inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border transition-colors shrink-0",
               memoryOpen || memory.trim()
                 ? "border-amber-600/50 bg-amber-500/10 text-amber-200"
                 : "border-slate-800 bg-slate-950/60 text-slate-400 hover:text-slate-200",
             )}
-            title="Sessiegeheugen bekijken of bewerken"
+            title="Sessiegeheugen: notities die in elk gesprek van deze sessie meegaan. Klik om te bekijken of bewerken."
           >
             <Brain className="w-3.5 h-3.5" aria-hidden />
-            <span>Sessiegeheugen</span>
+            <span>Geheugen</span>
             {memory.trim() && (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="Gevuld" />
             )}
