@@ -54,6 +54,12 @@ FEEDBACK_ACTION_PROMPTS = {
     ),
 }
 
+RETRIEVED_REFERENCES_NOTE = (
+    "KADERS EN RICHTLIJNEN bevatten geselecteerde relevante passages uit de "
+    "referentiedocumenten, niet het volledige kaderdocument. Baseer je alleen "
+    "op de meegeleverde passages; verzin geen inhoud uit ontbrekende delen."
+)
+
 MODE_PROMPTS = {
     "explore": (
         "Modus: Verkennen. Beschrijf en structureer het document. "

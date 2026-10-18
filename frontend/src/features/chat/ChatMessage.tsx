@@ -248,6 +248,11 @@ export function ChatMessage({
         {!isUser && message.contextStrategy === "full_document" && (
           <div className="text-xs text-slate-500 mt-1.5 pl-0.5">Gebaseerd op de volledige broncontext</div>
         )}
+        {!isUser && message.contextStrategy === "retrieved_references" && (
+          <div className="text-xs text-slate-500 mt-1.5 pl-0.5">
+            Studentenwerk volledig + relevante kaderpassages
+          </div>
+        )}
         {!isUser && message.citations?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {sortCitations(message.citations).map((c, i) => (

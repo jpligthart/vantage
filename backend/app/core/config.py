@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     chat_timeout_seconds: int = 120
     max_upload_bytes: int = 52_428_800
     processing_timeout_seconds: int = 600
+    fts_chunk_limit: int = 24
+    fts_min_query_chars: int = 2
+    fts_fallback_per_document: int = 4
     cors_origins: str = (
         "http://127.0.0.1:7847,http://localhost:7847,"
         "http://127.0.0.1:5173,http://localhost:5173"

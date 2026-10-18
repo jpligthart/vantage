@@ -12,9 +12,11 @@ from app.agents.prompts import (
     FEEDBACK_ACTION_PROMPTS,
     FEEDBACK_SYSTEM_PROMPT,
     MODE_PROMPTS,
+    RETRIEVED_REFERENCES_NOTE,
 )
 from app.agents.tokens import count_tokens, fits_context
 from app.core.config import get_settings
+from app.documents.fts import fallback_leading_chunks, search_chunks
 from app.documents.service import chunk_bbox, get_chunks_for_document
 from app.models.entities import (
     AnalysisSession,
@@ -76,6 +78,8 @@ def build_multi_document_context(
     ) -> list[str]:
         blocks: list[str] = []
         for idx, (source, chunks) in enumerate(group, start=1):
+            if not chunks:
+                continue
             lines = [f"## {prefix}{idx}: {source.name}"]
             for chunk in chunks:
                 label = f"{prefix}{idx}C{chunk.prompt_index}"
@@ -106,6 +110,142 @@ def build_multi_document_context(
         sections.append("KADERS EN RICHTLIJNEN:\n" + "\n\n".join(ref_blocks))
 
     return "\n\n".join(sections), index_map, sizes
+
+
+def _document_ids_for_sources(
+    documents: list[tuple[Source, list[SourceChunk]]],
+) -> list[str]:
+    ids: list[str] = []
+    for _, chunks in documents:
+        if chunks:
+            ids.append(chunks[0].document_id)
+    return ids
+
+
+def _select_reference_chunks(
+    db: Session,
+    ref_docs: list[tuple[Source, list[SourceChunk]]],
+    search_query: str,
+    *,
+    token_budget: int,
+) -> list[tuple[Source, list[SourceChunk]]]:
+    """Pick FTS (or fallback) chunks for references within a token budget."""
+    settings = get_settings()
+    ref_doc_ids = _document_ids_for_sources(ref_docs)
+    if not ref_doc_ids:
+        return []
+
+    hits = search_chunks(
+        db,
+        ref_doc_ids,
+        search_query,
+        limit=settings.fts_chunk_limit,
+        min_query_chars=settings.fts_min_query_chars,
+    )
+    if not hits:
+        hits = fallback_leading_chunks(
+            db,
+            ref_doc_ids,
+            per_document=settings.fts_fallback_per_document,
+            limit=settings.fts_chunk_limit,
+        )
+
+    by_doc: dict[str, list[SourceChunk]] = {}
+    used_tokens = 0
+    for chunk in hits:
+        t = count_tokens(chunk.content)
+        if used_tokens + t > token_budget and by_doc:
+            break
+        by_doc.setdefault(chunk.document_id, []).append(chunk)
+        used_tokens += t
+
+    selected: list[tuple[Source, list[SourceChunk]]] = []
+    for source, chunks in ref_docs:
+        if not chunks:
+            continue
+        doc_id = chunks[0].document_id
+        picked = by_doc.get(doc_id, [])
+        if not picked:
+            continue
+        picked_sorted = sorted(picked, key=lambda c: c.prompt_index)
+        selected.append((source, picked_sorted))
+    return selected
+
+
+def resolve_document_context(
+    db: Session,
+    documents: list[tuple[Source, list[SourceChunk]]],
+    *,
+    system: str,
+    user_message: str,
+    memory_block: str,
+    model_context: int | None,
+    search_query: str,
+) -> tuple[str, dict[str, CitedChunk], list[dict], str, str | None]:
+    """
+    Choose full_document vs retrieved_references for oversized kaders.
+
+    Returns (doc_text, index_map, sizes, strategy, error_code).
+    """
+    full_text, full_map, full_sizes = build_multi_document_context(documents)
+    document_for_budget = f"{full_text}\n\n{memory_block}".strip()
+    ok, _ = fits_context(
+        system=system,
+        document=document_for_budget,
+        history="",
+        user_message=user_message,
+        model_context=model_context,
+    )
+    if ok:
+        return full_text, full_map, full_sizes, "full_document", None
+
+    student_docs = [(s, c) for s, c in documents if not getattr(s, "is_reference", False)]
+    ref_docs = [(s, c) for s, c in documents if getattr(s, "is_reference", False)]
+
+    if not ref_docs:
+        return full_text, full_map, full_sizes, "full_document", "document_too_large"
+
+    student_text, student_map, student_sizes = build_multi_document_context(student_docs)
+    student_budget_doc = f"{student_text}\n\n{memory_block}".strip()
+    student_ok, remaining = fits_context(
+        system=system,
+        document=student_budget_doc,
+        history="",
+        user_message=user_message,
+        model_context=model_context,
+    )
+    if not student_ok:
+        return full_text, full_map, full_sizes, "full_document", "document_too_large"
+
+    # Half of remaining room is reserved for chat history in the caller.
+    ref_token_budget = max(256, remaining // 2)
+    selected_refs = _select_reference_chunks(
+        db,
+        ref_docs,
+        search_query,
+        token_budget=ref_token_budget,
+    )
+    hybrid_docs = list(student_docs) + selected_refs
+    hybrid_text, hybrid_map, hybrid_sizes = build_multi_document_context(hybrid_docs)
+    for item in hybrid_sizes:
+        if item.get("isReference"):
+            item["retrieved"] = True
+
+    hybrid_budget = f"{hybrid_text}\n\n{memory_block}".strip()
+    hybrid_ok, _ = fits_context(
+        system=system,
+        document=hybrid_budget,
+        history="",
+        user_message=user_message,
+        model_context=model_context,
+    )
+    if not hybrid_ok:
+        # Extreme edge case: even trimmed refs overflow — drop refs, keep student.
+        if student_docs:
+            return student_text, student_map, student_sizes, "retrieved_references", None
+        return full_text, full_map, full_sizes, "full_document", "document_too_large"
+
+    return hybrid_text, hybrid_map, hybrid_sizes, "retrieved_references", None
 
 
 def _ready_documents(
@@ -206,10 +346,8 @@ async def stream_chat(
     documents = [
         (source, get_chunks_for_document(db, document.id)) for source, document in ready
     ]
-    doc_text, index_map, sizes = build_multi_document_context(documents)
     memory = get_session_memory(db, session.id).strip()
     memory_block = f"SESSIEGEHEUGEN:\n{memory}\n\n" if memory else ""
-    document_for_budget = f"{doc_text}\n\n{memory_block}".strip()
 
     skipped = [source.name for source in selected if source.status != SourceStatus.ready]
     mode_prompt = MODE_PROMPTS.get(mode.value, MODE_PROMPTS["spar"])
@@ -222,6 +360,11 @@ async def stream_chat(
     if selection:
         system += f"\n\nDe gebruiker heeft deze passage geselecteerd om te bespreken:\n{selection}"
 
+    search_parts = [user_content]
+    if selection and selection.strip():
+        search_parts.append(selection.strip())
+    search_query = "\n".join(search_parts)
+
     prior = (
         db.query(ConversationMessage)
         .filter(ConversationMessage.conversation_id == conversation.id)
@@ -229,6 +372,30 @@ async def stream_chat(
         .all()
     )
     model_ctx = await _get_context_len(model_name)
+    doc_text, index_map, sizes, strategy, resolve_error = resolve_document_context(
+        db,
+        documents,
+        system=system,
+        user_message=user_content,
+        memory_block=memory_block,
+        model_context=model_ctx,
+        search_query=search_query,
+    )
+    if resolve_error:
+        yield (
+            "error",
+            {
+                "code": resolve_error,
+                "message": _too_large_message(sizes),
+                "sources": sizes,
+            },
+        )
+        return
+
+    if strategy == "retrieved_references":
+        system = f"{system}\n\n{RETRIEVED_REFERENCES_NOTE}"
+
+    document_for_budget = f"{doc_text}\n\n{memory_block}".strip()
     ok, remaining = fits_context(
         system=system,
         document=document_for_budget,
@@ -271,8 +438,8 @@ async def stream_chat(
     yield (
         "context",
         {
-            "strategy": "full_document",
-            "sourceCount": len(documents),
+            "strategy": strategy,
+            "sourceCount": len(sizes),
             "sources": sizes,
             "skipped": skipped,
         },
@@ -301,7 +468,7 @@ async def stream_chat(
                 role=MessageRole.assistant,
                 content=display_text,
                 mode=mode,
-                context_strategy="full_document",
+                context_strategy=strategy,
             )
             db.add(assistant)
             db.flush()
@@ -327,7 +494,7 @@ async def stream_chat(
                 role=MessageRole.assistant,
                 content=display_text,
                 mode=mode,
-                context_strategy="full_document",
+                context_strategy=strategy,
             )
             db.add(assistant)
             db.flush()
@@ -445,10 +612,8 @@ async def stream_feedback(
     documents = [
         (source, get_chunks_for_document(db, document.id)) for source, document in ready
     ]
-    doc_text, index_map, sizes = build_multi_document_context(documents)
     memory = get_session_memory(db, session.id).strip()
     memory_block = f"SESSIEGEHEUGEN:\n{memory}\n\n" if memory else ""
-    document_for_budget = f"{doc_text}\n\n{memory_block}".strip()
 
     action_key = action if action in FEEDBACK_ACTION_PROMPTS else "compose"
     action_prompt = FEEDBACK_ACTION_PROMPTS[action_key]
@@ -481,7 +646,40 @@ async def stream_feedback(
         user_parts.append("Stel de conceptfeedback op.")
     user_message = "\n\n".join(user_parts)
 
+    search_parts: list[str] = []
+    if draft and draft.strip():
+        search_parts.append(draft.strip())
+    if instructions and instructions.strip():
+        search_parts.append(instructions.strip())
+    if selection and selection.strip():
+        search_parts.append(selection.strip())
+    search_query = "\n".join(search_parts)
+
     model_ctx = await _get_context_len(model_name)
+    doc_text, index_map, sizes, strategy, resolve_error = resolve_document_context(
+        db,
+        documents,
+        system=system,
+        user_message=user_message,
+        memory_block=memory_block,
+        model_context=model_ctx,
+        search_query=search_query,
+    )
+    if resolve_error:
+        yield (
+            "error",
+            {
+                "code": resolve_error,
+                "message": _too_large_message(sizes),
+                "sources": sizes,
+            },
+        )
+        return
+
+    if strategy == "retrieved_references":
+        system = f"{system}\n\n{RETRIEVED_REFERENCES_NOTE}"
+
+    document_for_budget = f"{doc_text}\n\n{memory_block}".strip()
     ok, remaining = fits_context(
         system=system,
         document=document_for_budget,
@@ -521,8 +719,8 @@ async def stream_feedback(
     yield (
         "context",
         {
-            "strategy": "full_document",
-            "sourceCount": len(documents),
+            "strategy": strategy,
+            "sourceCount": len(sizes),
             "sources": sizes,
             "skipped": skipped,
         },

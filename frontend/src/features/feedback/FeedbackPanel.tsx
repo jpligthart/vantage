@@ -111,14 +111,22 @@ export function FeedbackPanel({
           }
           if (type === "context" && data && typeof data === "object") {
             const count = "sourceCount" in data ? Number((data as { sourceCount: number }).sourceCount) : 1;
+            const strategy =
+              "strategy" in data ? String((data as { strategy: string }).strategy) : "full_document";
             const refCount = sources.filter(
               (s) => selectedSourceIds.includes(s.id) && s.isReference && s.status === "ready",
             ).length;
-            setContextLabel(
-              refCount > 0
-                ? `Gebaseerd op ${count - refCount} studentbron(nen) + ${refCount} kader(s)`
-                : `Gebaseerd op ${count} bron(nen) (puur LLM, zonder extra kaders)`,
-            );
+            if (strategy === "retrieved_references") {
+              setContextLabel("Studentenwerk volledig + relevante kaderpassages");
+            } else if (refCount > 0) {
+              setContextLabel(
+                `Gebaseerd op ${count - refCount} studentbron(nen) + ${refCount} kader(s)`,
+              );
+            } else {
+              setContextLabel(
+                `Gebaseerd op ${count} bron(nen) (puur LLM, zonder extra kaders)`,
+              );
+            }
           }
           if (type === "citations" && data && typeof data === "object" && "items" in data) {
             setCitations((data as { items: CitationDto[] }).items);

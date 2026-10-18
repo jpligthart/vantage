@@ -229,15 +229,20 @@ export function ChatPanel({
           if (type === "context" && data && typeof data === "object" && "strategy" in data) {
             const strat = (data as { strategy: string }).strategy;
             const count = "sourceCount" in data ? Number((data as { sourceCount: number }).sourceCount) : 1;
-            if (strat === "full_document") {
-              const skipped = "skipped" in data && Array.isArray((data as { skipped: unknown }).skipped)
-                ? (data as { skipped: string[] }).skipped
-                : [];
-              const base = count > 1 ? `Gebaseerd op ${count} documenten` : "Gebaseerd op volledig document";
-              patchStream(convAtSend, () => ({
-                contextLabel: skipped.length > 0 ? `${base}. Nog niet meegenomen: ${skipped.join(", ")}` : base,
-              }));
+            const skipped = "skipped" in data && Array.isArray((data as { skipped: unknown }).skipped)
+              ? (data as { skipped: string[] }).skipped
+              : [];
+            let base: string;
+            if (strat === "retrieved_references") {
+              base = "Studentenwerk volledig + relevante kaderpassages";
+            } else if (strat === "full_document") {
+              base = count > 1 ? `Gebaseerd op ${count} documenten` : "Gebaseerd op volledig document";
+            } else {
+              base = `Contextstrategie: ${strat}`;
             }
+            patchStream(convAtSend, () => ({
+              contextLabel: skipped.length > 0 ? `${base}. Nog niet meegenomen: ${skipped.join(", ")}` : base,
+            }));
           }
           if (type === "citations" && data && typeof data === "object" && "items" in data) {
             patchStream(convAtSend, () => ({
