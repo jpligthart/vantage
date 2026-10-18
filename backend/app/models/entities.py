@@ -23,6 +23,12 @@ class SourceType(str, enum.Enum):
     pdf = "pdf"
     docx = "docx"
     text = "text"
+    web = "web"
+
+
+class WebMode(str, enum.Enum):
+    page = "page"
+    site = "site"
 
 
 class MessageRole(str, enum.Enum):
@@ -53,6 +59,13 @@ class Source(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     student: Mapped[str | None] = mapped_column(String(256), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    origin_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    web_mode: Mapped[WebMode | None] = mapped_column(Enum(WebMode), nullable=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_refreshed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     imported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

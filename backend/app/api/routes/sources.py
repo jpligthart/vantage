@@ -4,8 +4,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.api.schemas import SourcePaste, SourceUpdate, SourceWebCreate
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.documents.paste import save_pasted_text
 from app.documents.processor import process_source
 from app.documents.service import (
     delete_source,
@@ -14,9 +16,8 @@ from app.documents.service import (
     list_sources,
     source_to_dict,
 )
-from app.api.schemas import SourcePaste, SourceUpdate
-from app.documents.paste import save_pasted_text
 from app.documents.upload import save_upload
+from app.documents.web_ingest import create_web_source, refresh_web_source
 from app.models.entities import Source, SourceStatus, SourceType
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -77,6 +78,66 @@ async def upload_source(
     return {"sourceId": source_id, "status": source.status.value}
 
 
+@router.post("/web")
+async def web_source(
+    body: SourceWebCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict:
+    settings = get_settings()
+    try:
+        source = create_web_source(
+            db,
+            settings,
+            url=body.url,
+            mode=body.mode,
+            title=body.title,
+            is_reference=body.isReference,
+            is_default=body.isDefault,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Ophalen mislukt: {exc}") from exc
+    background_tasks.add_task(_run_process, source.id)
+    return {"sourceId": source.id, "status": source.status.value}
+
+
+@router.post("/{source_id}/refresh")
+async def refresh_source(
+    source_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    force: bool = False,
+) -> dict:
+    source = get_source_or_404(db, source_id)
+    if source.type != SourceType.web:
+        raise HTTPException(status_code=400, detail="Alleen web-bronnen kunnen vernieuwd worden")
+    if source.status == SourceStatus.processing:
+        raise HTTPException(status_code=409, detail="Bron wordt al verwerkt")
+    try:
+        outcome = refresh_web_source(db, source_id, force=force)
+    except Exception as exc:
+        source = get_source_or_404(db, source_id)
+        source.status = SourceStatus.failed
+        source.error = str(exc)[:2000]
+        db.commit()
+        raise HTTPException(status_code=502, detail=f"Vernieuwen mislukt: {exc}") from exc
+
+    if outcome == "updated":
+        background_tasks.add_task(_run_process, source_id)
+        source = get_source_or_404(db, source_id)
+        return {"sourceId": source_id, "status": source.status.value, "outcome": outcome}
+    source = get_source_or_404(db, source_id)
+    return {
+        "sourceId": source_id,
+        "status": source.status.value,
+        "outcome": outcome,
+        "lastCheckedAt": source.last_checked_at.isoformat() if source.last_checked_at else None,
+        "lastRefreshedAt": source.last_refreshed_at.isoformat() if source.last_refreshed_at else None,
+    }
+
+
 def _run_process(source_id: str) -> None:
     from app.core.database import SessionLocal
 
@@ -118,6 +179,11 @@ def get_source_status(source_id: str, db: Session = Depends(get_db)) -> dict:
 def get_source_content(source_id: str, db: Session = Depends(get_db)) -> FileResponse:
     source = get_source_or_404(db, source_id)
     path = Path(source.storage_path)
+    if source.type == SourceType.web:
+        manifest = path / "manifest.json" if path.is_dir() else path
+        if not manifest.is_file():
+            raise HTTPException(status_code=404, detail="Web snapshot not found")
+        return FileResponse(manifest, media_type="application/json", filename="manifest.json")
     if source.type == SourceType.pdf:
         media = "application/pdf"
     elif source.type == SourceType.text:

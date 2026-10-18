@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from alembic import command
@@ -8,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import health, models, sessions, sources
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.documents.web_refresh_loop import web_refresh_loop
 
 
 @asynccontextmanager
@@ -19,7 +21,13 @@ async def lifespan(app: FastAPI):
     settings.docling_dir.mkdir(parents=True, exist_ok=True)
     (settings.data_dir / "model-cache" / "huggingface").mkdir(parents=True, exist_ok=True)
     _run_migrations()
-    yield
+    stop = asyncio.Event()
+    refresh_task = asyncio.create_task(web_refresh_loop(stop))
+    try:
+        yield
+    finally:
+        stop.set()
+        await refresh_task
 
 
 def _run_migrations() -> None:

@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { ClipboardPaste, Upload } from "lucide-react";
+import { ClipboardPaste, Globe, Upload } from "lucide-react";
 
 interface Props {
   onFile: (file: File) => void;
   onPasteText: (text: string, title?: string) => void;
+  onWebUrl?: (url: string, mode: "page" | "site", title?: string) => void;
   disabled?: boolean;
   heading?: string;
   hint?: string | null;
@@ -13,6 +14,7 @@ interface Props {
 export function ImportActions({
   onFile,
   onPasteText,
+  onWebUrl,
   disabled,
   heading = "Bron toevoegen",
   hint = "Of sleep PDF/DOCX op het venster",
@@ -23,6 +25,11 @@ export function ImportActions({
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteBody, setPasteBody] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [webOpen, setWebOpen] = useState(false);
+  const [webUrl, setWebUrl] = useState("");
+  const [webTitle, setWebTitle] = useState("");
+  const [webMode, setWebMode] = useState<"page" | "site">("site");
+  const [webError, setWebError] = useState<string | null>(null);
 
   async function pasteFromClipboard() {
     setPasteError(null);
@@ -51,6 +58,30 @@ export function ImportActions({
     setPasteBody("");
     setPasteTitle("");
     setPasteError(null);
+  }
+
+  function submitWeb() {
+    const url = webUrl.trim();
+    if (!url) {
+      setWebError("Voer een URL in.");
+      return;
+    }
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        setWebError("Alleen http(s) URLs.");
+        return;
+      }
+    } catch {
+      setWebError("Ongeldige URL.");
+      return;
+    }
+    onWebUrl?.(url, webMode, webTitle.trim() || undefined);
+    setWebOpen(false);
+    setWebUrl("");
+    setWebTitle("");
+    setWebMode("site");
+    setWebError(null);
   }
 
   return (
@@ -86,6 +117,20 @@ export function ImportActions({
           <ClipboardPaste className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden />
           Plakken vanaf clipboard
         </button>
+        {onWebUrl ? (
+          <button
+            type="button"
+            disabled={disabled}
+            className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 text-left transition-colors"
+            onClick={() => {
+              setWebError(null);
+              setWebOpen(true);
+            }}
+          >
+            <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden />
+            URL / DokuWiki…
+          </button>
+        ) : null}
       </div>
       {hint ? <p className="text-xs text-slate-600 w-full">{hint}</p> : null}
 
@@ -123,6 +168,79 @@ export function ImportActions({
                 type="button"
                 className="text-sm px-3 py-1 rounded bg-amber-600"
                 onClick={submitPaste}
+              >
+                Importeren
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {webOpen && onWebUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="web-dialog-title"
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-lg p-4 space-y-3 shadow-xl">
+            <h2 id="web-dialog-title" className="text-sm font-medium">
+              Website / DokuWiki importeren
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              Snapshot wordt opgeslagen en doorzoekbaar via chat. Gebruik DokuWiki-site voor meerdere
+              pagina&apos;s.
+            </p>
+            {webError && <p className="text-xs text-amber-400">{webError}</p>}
+            <input
+              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm"
+              placeholder="https://wiki.example.com/doku.php?id=start"
+              value={webUrl}
+              onChange={(e) => setWebUrl(e.target.value)}
+              autoFocus
+            />
+            <input
+              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-sm"
+              placeholder="Titel (optioneel)"
+              value={webTitle}
+              onChange={(e) => setWebTitle(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={`flex-1 text-xs px-2 py-1.5 rounded border transition-colors ${
+                  webMode === "page"
+                    ? "border-amber-500/70 bg-amber-500/15 text-amber-100"
+                    : "border-slate-700 bg-slate-950 text-slate-400"
+                }`}
+                onClick={() => setWebMode("page")}
+              >
+                Één pagina
+              </button>
+              <button
+                type="button"
+                className={`flex-1 text-xs px-2 py-1.5 rounded border transition-colors ${
+                  webMode === "site"
+                    ? "border-amber-500/70 bg-amber-500/15 text-amber-100"
+                    : "border-slate-700 bg-slate-950 text-slate-400"
+                }`}
+                onClick={() => setWebMode("site")}
+              >
+                DokuWiki-site
+              </button>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="text-sm px-3 py-1 rounded bg-slate-800"
+                onClick={() => setWebOpen(false)}
+              >
+                Annuleren
+              </button>
+              <button
+                type="button"
+                className="text-sm px-3 py-1 rounded bg-amber-600"
+                onClick={submitWeb}
               >
                 Importeren
               </button>

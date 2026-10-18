@@ -13,6 +13,7 @@ interface Props {
   onDetach: (sourceId: string) => void;
   onFile: (file: File) => void;
   onPasteText: (text: string, title?: string) => void;
+  onWebUrl?: (url: string, mode: "page" | "site", title?: string) => void;
   onAttachExisting: (sourceId: string) => void;
   onToggleReference: (sourceId: string, isReference: boolean) => void;
   onOpenLibrary: () => void;
@@ -28,6 +29,7 @@ export function SourceBar({
   onDetach,
   onFile,
   onPasteText,
+  onWebUrl,
   onAttachExisting,
   onToggleReference,
   onOpenLibrary,
@@ -169,6 +171,14 @@ export function SourceBar({
                   setAddMenuOpen(false);
                   onPasteText(text, title);
                 }}
+                onWebUrl={
+                  onWebUrl
+                    ? (url, mode, title) => {
+                        setAddMenuOpen(false);
+                        onWebUrl(url, mode, title);
+                      }
+                    : undefined
+                }
               />
               <button
                 type="button"

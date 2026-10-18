@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookMarked, FileText, Pin, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import { BookMarked, FileText, Globe, Pin, Plus, RefreshCw, Search, Trash2, Upload, X } from "lucide-react";
 import type { SourceDto } from "../../types/domain";
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   onClose: () => void;
   onUploadDefault: (file: File) => Promise<void>;
   onPasteDefault: (text: string, title?: string) => Promise<void>;
+  onWebDefault: (url: string, mode: "page" | "site", title?: string) => Promise<void>;
+  onRefreshWeb: (sourceId: string) => Promise<void>;
   onToggleDefault: (sourceId: string, isDefault: boolean) => Promise<void>;
   onToggleReference: (sourceId: string, isReference: boolean) => Promise<void>;
   onAttachToCurrentSession: (sourceId: string) => Promise<void>;
@@ -22,6 +24,8 @@ export function ReferenceLibraryModal({
   onClose,
   onUploadDefault,
   onPasteDefault,
+  onWebDefault,
+  onRefreshWeb,
   onToggleDefault,
   onToggleReference,
   onAttachToCurrentSession,
@@ -31,8 +35,13 @@ export function ReferenceLibraryModal({
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteBody, setPasteBody] = useState("");
+  const [webOpen, setWebOpen] = useState(false);
+  const [webUrl, setWebUrl] = useState("");
+  const [webTitle, setWebTitle] = useState("");
+  const [webMode, setWebMode] = useState<"page" | "site">("site");
   const [searchQuery, setSearchQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,9 +87,25 @@ export function ReferenceLibraryModal({
     }
   }
 
+  async function handleWebSubmit() {
+    const url = webUrl.trim();
+    if (!url) return;
+    setBusy(true);
+    try {
+      await onWebDefault(url, webMode, webTitle.trim() || undefined);
+      setWebUrl("");
+      setWebTitle("");
+      setWebMode("site");
+      setWebOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function renderSourceRow(source: SourceDto) {
     const isDefault = Boolean(source.isDefault);
     const isAttached = attachedSet.has(source.id);
+    const isWeb = source.type === "web";
 
     return (
       <li
@@ -88,13 +113,23 @@ export function ReferenceLibraryModal({
         className="flex items-center justify-between gap-2 px-3 py-2 rounded-md border border-slate-800 bg-slate-950/60 hover:border-slate-700 transition-colors"
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <FileText className="w-4 h-4 text-sky-400/80 shrink-0" aria-hidden />
+          {isWeb ? (
+            <Globe className="w-4 h-4 text-emerald-400/80 shrink-0" aria-hidden />
+          ) : (
+            <FileText className="w-4 h-4 text-sky-400/80 shrink-0" aria-hidden />
+          )}
           <div className="min-w-0 flex-1">
             <div className="text-xs font-medium text-slate-200 truncate" title={source.name}>
               {source.name}
             </div>
-            <div className="text-[11px] text-slate-500 flex items-center gap-2">
+            <div className="text-[11px] text-slate-500 flex items-center gap-2 flex-wrap">
               <span>{source.type.toUpperCase()}</span>
+              {isWeb && source.pageCount != null && <span>{source.pageCount} pagina&apos;s</span>}
+              {isWeb && source.lastRefreshedAt && (
+                <span title={source.lastRefreshedAt}>
+                  vernieuwd {new Date(source.lastRefreshedAt).toLocaleDateString("nl-NL")}
+                </span>
+              )}
               {source.status !== "ready" && (
                 <span className="text-amber-400">
                   {source.status === "failed" ? "Mislukt" : "Verwerken…"}
@@ -105,6 +140,28 @@ export function ReferenceLibraryModal({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {isWeb && (
+            <button
+              type="button"
+              disabled={refreshingId === source.id || source.status === "processing"}
+              onClick={async () => {
+                setRefreshingId(source.id);
+                try {
+                  await onRefreshWeb(source.id);
+                } finally {
+                  setRefreshingId(null);
+                }
+              }}
+              title="Snapshot opnieuw ophalen"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] border border-slate-700 bg-slate-900 text-slate-300 hover:text-slate-100 disabled:opacity-40"
+            >
+              <RefreshCw
+                className={`w-3 h-3 ${refreshingId === source.id ? "animate-spin" : ""}`}
+                aria-hidden
+              />
+              Vernieuwen
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onToggleDefault(source.id, !isDefault)}
@@ -242,11 +299,26 @@ export function ReferenceLibraryModal({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => setPasteOpen((open) => !open)}
+                  onClick={() => {
+                    setWebOpen(false);
+                    setPasteOpen((open) => !open);
+                  }}
                   className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" aria-hidden />
                   Tekst plakken
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setPasteOpen(false);
+                    setWebOpen((open) => !open);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5" aria-hidden />
+                  URL / wiki
                 </button>
               </div>
             </div>
@@ -277,6 +349,64 @@ export function ReferenceLibraryModal({
                     type="button"
                     disabled={busy || !pasteBody.trim()}
                     onClick={handlePasteSubmit}
+                    className="text-xs px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-medium"
+                  >
+                    Opslaan als vaste context
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {webOpen && (
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <input
+                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
+                  placeholder="https://wiki.example.com/doku.php?id=start"
+                  value={webUrl}
+                  onChange={(e) => setWebUrl(e.target.value)}
+                />
+                <input
+                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-100"
+                  placeholder="Titel (optioneel)"
+                  value={webTitle}
+                  onChange={(e) => setWebTitle(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`flex-1 text-xs px-2 py-1.5 rounded border ${
+                      webMode === "page"
+                        ? "border-amber-500/70 bg-amber-500/15 text-amber-100"
+                        : "border-slate-700 text-slate-400"
+                    }`}
+                    onClick={() => setWebMode("page")}
+                  >
+                    Één pagina
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 text-xs px-2 py-1.5 rounded border ${
+                      webMode === "site"
+                        ? "border-amber-500/70 bg-amber-500/15 text-amber-100"
+                        : "border-slate-700 text-slate-400"
+                    }`}
+                    onClick={() => setWebMode("site")}
+                  >
+                    DokuWiki-site
+                  </button>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWebOpen(false)}
+                    className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300"
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !webUrl.trim()}
+                    onClick={handleWebSubmit}
                     className="text-xs px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-medium"
                   >
                     Opslaan als vaste context

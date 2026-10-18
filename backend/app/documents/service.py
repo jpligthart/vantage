@@ -1,11 +1,12 @@
 import json
+import shutil
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.documents.fts import remove_chunks_for_document
-from app.models.entities import Document, DocumentSection, Source, SourceChunk, SourceStatus
+from app.models.entities import Document, DocumentSection, Source, SourceChunk
 
 
 def get_source_or_404(db: Session, source_id: str) -> Source:
@@ -27,6 +28,15 @@ def source_to_dict(source: Source) -> dict:
         "student": source.student,
         "subject": source.subject,
         "importedAt": source.imported_at.isoformat() if source.imported_at else None,
+        "originUrl": getattr(source, "origin_url", None),
+        "webMode": source.web_mode.value if getattr(source, "web_mode", None) else None,
+        "pageCount": getattr(source, "page_count", None),
+        "lastCheckedAt": source.last_checked_at.isoformat()
+        if getattr(source, "last_checked_at", None)
+        else None,
+        "lastRefreshedAt": source.last_refreshed_at.isoformat()
+        if getattr(source, "last_refreshed_at", None)
+        else None,
     }
 
 
@@ -72,11 +82,14 @@ def delete_source(db: Session, source_id: str) -> None:
     if doc:
         remove_chunks_for_document(db, doc.id)
 
-    for path_str in [source.storage_path]:
-        try:
-            Path(path_str).unlink(missing_ok=True)
-        except OSError:
-            pass
+    path = Path(source.storage_path)
+    try:
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.unlink(missing_ok=True)
+    except OSError:
+        pass
     if doc:
         for p in [doc.docling_json_path, doc.html_preview_path]:
             if p:

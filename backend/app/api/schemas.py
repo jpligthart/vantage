@@ -46,6 +46,14 @@ class SourcePaste(BaseModel):
     isDefault: bool = False
 
 
+class SourceWebCreate(BaseModel):
+    url: str = Field(min_length=1, max_length=2048)
+    mode: str = Field(default="page", pattern="^(page|site)$")
+    title: str | None = Field(default=None, max_length=512)
+    isReference: bool = False
+    isDefault: bool = False
+
+
 class SourceUpdate(BaseModel):
     isReference: bool | None = None
     isDefault: bool | None = None

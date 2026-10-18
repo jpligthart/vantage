@@ -10,8 +10,9 @@ from docling_core.types.doc import DoclingDocument
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.documents.fts import index_chunk
+from app.documents.fts import index_chunk, remove_chunks_for_document
 from app.documents.provenance import bbox_to_json
+from app.documents.web_fetch import read_page_texts
 from app.models.entities import Document, DocumentSection, Source, SourceChunk, SourceStatus, SourceType
 
 logger = logging.getLogger(__name__)
@@ -138,6 +139,82 @@ def _build_html_preview_from_anchors(anchor_map: dict[str, str]) -> str:
     )
 
 
+def _clear_document(db: Session, source: Source) -> None:
+    existing = db.query(Document).filter(Document.source_id == source.id).first()
+    if existing is None:
+        return
+    remove_chunks_for_document(db, existing.id)
+    db.query(SourceChunk).filter(SourceChunk.document_id == existing.id).delete()
+    db.query(DocumentSection).filter(DocumentSection.document_id == existing.id).delete()
+    for path_str in [existing.docling_json_path, existing.html_preview_path]:
+        if path_str:
+            Path(path_str).unlink(missing_ok=True)
+    db.delete(existing)
+    db.flush()
+
+
+def _process_web_source(db: Session, source: Source, settings) -> None:
+    root = Path(source.storage_path)
+    if not root.is_dir():
+        raise FileNotFoundError(f"Web source directory missing: {root}")
+
+    pages = read_page_texts(root)
+    if not pages:
+        raise ValueError("Geen wiki-pagina's om te verwerken.")
+
+    _clear_document(db, source)
+
+    settings.docling_dir.mkdir(parents=True, exist_ok=True)
+    document = Document(
+        source_id=source.id,
+        title=source.name,
+        page_count=len(pages),
+        docling_json_path=None,
+    )
+    db.add(document)
+    db.flush()
+
+    prompt_index = 0
+    anchor_preview: dict[str, str] = {}
+    for order_index, (page_id, title, text) in enumerate(pages):
+        section = DocumentSection(
+            document_id=document.id,
+            title=title[:512],
+            level=1,
+            order_index=order_index,
+        )
+        db.add(section)
+        db.flush()
+
+        for piece in _split_text(text, MAX_CHUNK_CHARS):
+            prompt_index += 1
+            chunk_id = str(uuid.uuid4())
+            anchor_id = f"chunk-{prompt_index}"
+            chunk = SourceChunk(
+                id=chunk_id,
+                document_id=document.id,
+                section_id=section.id,
+                prompt_index=prompt_index,
+                anchor_id=anchor_id,
+                content=piece,
+                page_no=None,
+                section_title=page_id[:512],
+                bbox_json=None,
+            )
+            db.add(chunk)
+            index_chunk(db, chunk_id, document.id, piece)
+            if len(anchor_preview) < 40:
+                anchor_preview[anchor_id] = f"[{page_id}]\n{piece[:500]}"
+
+    if prompt_index == 0:
+        raise ValueError("Geen extracteerbare tekst in web-bron.")
+
+    html_path = settings.docling_dir / f"{source.id}.html"
+    html_path.write_text(_build_html_preview_from_anchors(anchor_preview), encoding="utf-8")
+    document.html_preview_path = str(html_path)
+    source.page_count = len(pages)
+
+
 def process_source(db: Session, source_id: str) -> None:
     global _processing_lock
     settings = get_settings()
@@ -157,6 +234,14 @@ def process_source(db: Session, source_id: str) -> None:
 
     try:
         path = Path(source.storage_path)
+
+        if source.type == SourceType.web:
+            _process_web_source(db, source, settings)
+            source.status = SourceStatus.ready
+            db.commit()
+            logger.info("Processed web source %s (%s pages)", source_id, source.page_count)
+            return
+
         if not path.is_file():
             raise FileNotFoundError(f"Source file missing: {path}")
 

@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     fts_chunk_limit: int = 24
     fts_min_query_chars: int = 2
     fts_fallback_per_document: int = 4
+    web_max_pages: int = 200
+    web_fetch_timeout: float = 30.0
+    web_refresh_interval_hours: int = 24
+    web_user_agent: str = "VantageBot/0.1 (+https://github.com/jpligthart/vantage)"
     cors_origins: str = (
         "http://127.0.0.1:7847,http://localhost:7847,"
         "http://127.0.0.1:5173,http://localhost:5173"

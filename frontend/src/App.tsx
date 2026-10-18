@@ -26,6 +26,8 @@ import {
   listSessions,
   listSources,
   pasteSource,
+  createWebSource,
+  refreshWebSource,
   renameConversation,
   saveFeedbackDraft,
   saveMemory,
@@ -254,6 +256,60 @@ export default function App() {
       await addSourceToSession(sourceId);
     } catch (error) {
       fail(error, "Tekst importeren mislukt");
+    }
+  }
+
+  async function handleAddWeb(url: string, mode: "page" | "site", title?: string) {
+    try {
+      setStatusText(mode === "site" ? "DokuWiki ophalen…" : "Pagina ophalen…");
+      const { sourceId } = await createWebSource(url, mode, title);
+      await addSourceToSession(sourceId);
+    } catch (error) {
+      fail(error, "Web-bron importeren mislukt");
+    }
+  }
+
+  async function handleWebDefault(url: string, mode: "page" | "site", title?: string) {
+    try {
+      setStatusText(mode === "site" ? "DokuWiki als kader ophalen…" : "Pagina als kader ophalen…");
+      const { sourceId } = await createWebSource(url, mode, title, {
+        isReference: true,
+        isDefault: true,
+      });
+      if (activeSessionId) {
+        await attachSource(activeSessionId, sourceId);
+        await loadDetail(activeSessionId, {
+          conversationId: activeConversationId,
+          sourceId: activeSourceId,
+        });
+      }
+      setLibrary(await listSources());
+      setStatusText(null);
+    } catch (error) {
+      fail(error, "Web-bron opslaan mislukt");
+    }
+  }
+
+  async function handleRefreshWeb(sourceId: string) {
+    try {
+      setStatusText("Web-bron vernieuwen…");
+      const result = await refreshWebSource(sourceId, true);
+      setLibrary(await listSources());
+      if (activeSessionId) {
+        await loadDetail(activeSessionId, {
+          conversationId: activeConversationId,
+          sourceId: activeSourceId,
+        });
+      }
+      if (result.outcome === "updated") {
+        setStatusText("Document verwerken…");
+      } else if (result.outcome === "unchanged") {
+        setStatusText("Geen wijzigingen op de wiki.");
+      } else {
+        setStatusText(null);
+      }
+    } catch (error) {
+      fail(error, "Vernieuwen mislukt");
     }
   }
 
@@ -713,6 +769,7 @@ export default function App() {
                   onDetach={handleDetach}
                   onFile={handleAddFile}
                   onPasteText={handleAddPaste}
+                  onWebUrl={handleAddWeb}
                   onAttachExisting={addSourceToSession}
                   onToggleReference={handleToggleReference}
                   onOpenLibrary={() => {
@@ -880,6 +937,8 @@ export default function App() {
           onClose={() => setReferenceLibraryOpen(false)}
           onUploadDefault={handleUploadDefault}
           onPasteDefault={handlePasteDefault}
+          onWebDefault={handleWebDefault}
+          onRefreshWeb={handleRefreshWeb}
           onToggleDefault={handleToggleDefault}
           onToggleReference={handleToggleReference}
           onAttachToCurrentSession={addSourceToSession}

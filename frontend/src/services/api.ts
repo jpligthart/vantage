@@ -48,32 +48,54 @@ export async function uploadSource(
   return request(`/api/sources/upload${query}`, { method: "POST", body: form });
 }
 
+export async function createWebSource(
+  url: string,
+  mode: "page" | "site",
+  title?: string,
+  options?: { isReference?: boolean; isDefault?: boolean },
+): Promise<{ sourceId: string }> {
+  return request("/api/sources/web", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      url,
+      mode,
+      title,
+      isReference: options?.isReference ?? false,
+      isDefault: options?.isDefault ?? false,
+    }),
+  });
+}
+
+export async function refreshWebSource(
+  sourceId: string,
+  force = false,
+): Promise<{ sourceId: string; status: string; outcome: string }> {
+  const q = force ? "?force=true" : "";
+  return request(`/api/sources/${sourceId}/refresh${q}`, { method: "POST" });
+}
+
 export async function getSourceStatus(sourceId: string) {
   return request<{ status: string; error?: string }>(`/api/sources/${sourceId}/status`);
 }
 
 export async function getSource(sourceId: string): Promise<SourceDto> {
-  const data = await request<{
-    id: string;
-    name: string;
-    type: string;
-    status: string;
-    error?: string;
-    isReference?: boolean;
-    isDefault?: boolean;
-    student?: string | null;
-    subject?: string | null;
-  }>(`/api/sources/${sourceId}`);
+  const data = await request<SourceDto>(`/api/sources/${sourceId}`);
   return {
     id: data.id,
     name: data.name,
-    type: data.type as SourceDto["type"],
-    status: data.status as SourceDto["status"],
+    type: data.type,
+    status: data.status,
     error: data.error,
     isReference: data.isReference ?? false,
     isDefault: data.isDefault ?? false,
     student: data.student,
     subject: data.subject,
+    originUrl: data.originUrl ?? null,
+    webMode: data.webMode ?? null,
+    pageCount: data.pageCount ?? null,
+    lastCheckedAt: data.lastCheckedAt ?? null,
+    lastRefreshedAt: data.lastRefreshedAt ?? null,
   };
 }
 

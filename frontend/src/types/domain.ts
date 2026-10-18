@@ -50,11 +50,16 @@ export interface SessionDetail extends SessionDto {
 export interface SourceDto {
   id: string;
   name: string;
-  type: "pdf" | "docx" | "text";
+  type: "pdf" | "docx" | "text" | "web";
   status: "queued" | "processing" | "ready" | "failed";
   error?: string | null;
   isReference?: boolean;
   isDefault?: boolean;
   student?: string | null;
   subject?: string | null;
+  originUrl?: string | null;
+  webMode?: "page" | "site" | null;
+  pageCount?: number | null;
+  lastCheckedAt?: string | null;
+  lastRefreshedAt?: string | null;
 }

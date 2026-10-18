@@ -18,7 +18,9 @@ export function DocumentChrome({ source }: Props) {
         <span className="text-slate-400 truncate">
           {source.type === "pdf"
             ? "Originele weergave — scroll door alle pagina's"
-            : "Tekstweergave — layout kan afwijken"}
+            : source.type === "web"
+              ? `Web-snapshot${source.pageCount != null ? ` (${source.pageCount} pagina's)` : ""}`
+              : "Tekstweergave — layout kan afwijken"}
         </span>
       </div>
       <a
