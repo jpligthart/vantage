@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   RotateCcw,
+  RotateCw,
   Sparkles,
   Wand2,
 } from "lucide-react";
@@ -122,6 +123,7 @@ export function FeedbackPanel({
   const [instructions, setInstructions] = useState("");
   const [busyAction, setBusyAction] = useState<FeedbackAction | null>(null);
   const [previousDraft, setPreviousDraft] = useState<string | null>(null);
+  const [showingPrevious, setShowingPrevious] = useState(false);
   const [citations, setCitations] = useState<CitationDto[]>([]);
   const [contextLabel, setContextLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +150,7 @@ export function FeedbackPanel({
 
   useEffect(() => {
     setPreviousDraft(null);
+    setShowingPrevious(false);
     setCitations([]);
     setError(null);
     setContextLabel(null);
@@ -197,6 +200,7 @@ export function FeedbackPanel({
 
     const snapshotBefore = draft;
     setPreviousDraft(snapshotBefore);
+    setShowingPrevious(false);
     setBusyAction(action);
     setViewMode("preview");
     setError(null);
@@ -248,6 +252,8 @@ export function FeedbackPanel({
           if (type === "error" && data && typeof data === "object" && "message" in data) {
             setError(String((data as { message: string }).message));
             onDraftChange(snapshotBefore);
+            setPreviousDraft(null);
+            setShowingPrevious(false);
           }
         },
       );
@@ -255,16 +261,20 @@ export function FeedbackPanel({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Feedback genereren mislukt");
       onDraftChange(snapshotBefore);
+      setPreviousDraft(null);
+      setShowingPrevious(false);
     } finally {
       setBusyAction(null);
     }
   }
 
-  function handleUndo() {
+  function handleToggleVersion() {
     if (previousDraft === null) return;
+    const current = draft;
     onDraftChange(previousDraft);
     onSaveDraft(previousDraft);
-    setPreviousDraft(null);
+    setPreviousDraft(current);
+    setShowingPrevious((value) => !value);
   }
 
   async function handleCopy() {
@@ -504,12 +514,20 @@ export function FeedbackPanel({
               {previousDraft !== null && !busyAction && (
                 <button
                   type="button"
-                  onClick={handleUndo}
+                  onClick={handleToggleVersion}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-700 bg-slate-900 hover:bg-slate-800 text-xs text-slate-300 transition-colors"
-                  title="Herstel de tekst van vóór de laatste AI-actie"
+                  title={
+                    showingPrevious
+                      ? "Terug naar de nieuwere tekst (na de laatste AI-actie)"
+                      : "Terug naar de tekst van vóór de laatste AI-actie"
+                  }
                 >
-                  <RotateCcw className="w-3 h-3" aria-hidden />
-                  Vorige versie
+                  {showingPrevious ? (
+                    <RotateCw className="w-3 h-3" aria-hidden />
+                  ) : (
+                    <RotateCcw className="w-3 h-3" aria-hidden />
+                  )}
+                  {showingPrevious ? "Nieuwere versie" : "Vorige versie"}
                 </button>
               )}
               <button
