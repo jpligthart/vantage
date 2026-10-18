@@ -477,7 +477,7 @@ export function ChatPanel({
                 ? "border-amber-600/50 bg-amber-500/10 text-amber-200"
                 : "border-slate-800 bg-slate-950/60 text-slate-400 hover:text-slate-200",
             )}
-            title="Sessiegeheugen: notities die in elk gesprek van deze sessie meegaan. Klik om te bekijken of bewerken."
+            title="Sessiegeheugen: vaste afspraken die in elk gesprek én bij feedback meegaan. Wordt bewaard. (Anders dan de extra instructie bij Feedback, die alleen bij één knopklik meegaat.)"
           >
             <Brain className="w-3.5 h-3.5" aria-hidden />
             <span>Geheugen</span>
@@ -497,7 +497,7 @@ export function ChatPanel({
           <div className="pt-1">
             <textarea
               className="w-full bg-slate-950 border border-slate-700/80 focus:border-amber-500/60 rounded-md p-2 text-xs text-slate-200 min-h-[68px] outline-none"
-              placeholder="Korte notities of afspraken die in elk gesprek van deze sessie meegaan…"
+              placeholder="Vaste afspraken voor deze sessie (chat én feedback), bijv. 'jij-vorm, 2ejaars AD'…"
               value={memory}
               disabled={!sessionId}
               onChange={(e) => onMemoryChange(e.target.value)}

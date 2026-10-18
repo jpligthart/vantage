@@ -357,34 +357,39 @@ export function FeedbackPanel({
           )}
         </div>
 
-        {/* Row 3: Optional focus + run */}
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            className="flex-1 min-w-0 bg-slate-950 border border-slate-700/80 focus:border-amber-500/60 rounded-md px-2.5 py-1.5 text-xs text-slate-200 outline-none"
-            placeholder="Optionele focus, bijv. 'jij-toon' of 'toets op HBO-i niveau 2'…"
-            title="Optionele focus of instructie voor de AI, bijv. 'spreek student direct aan op jij-toon' of 'toets op HBO-i Architectuur niveau 2'"
-            value={instructions}
-            disabled={!sessionId || Boolean(busyAction)}
-            onChange={(e) => setInstructions(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && canRun) runAction(action);
-            }}
-          />
-          <button
-            type="button"
-            disabled={!canRun}
-            onClick={() => runAction(action)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-xs font-medium text-white transition-colors shrink-0"
-            title={
-              activeAction.needsDraft && !draft.trim()
-                ? "Typ eerst steekwoorden of concepttekst in het tekstvak"
-                : activeAction.description
-            }
-          >
-            <ActionIcon className="w-3.5 h-3.5" aria-hidden />
-            {busyLabel ?? activeAction.label}
-          </button>
+        {/* Row 3: One-shot instruction + run */}
+        <div className="space-y-1">
+          <p className="text-[11px] text-slate-500 leading-tight">
+            Extra instructie — gaat alleen mee met de knop hiernaast (niet bewaard, anders dan Geheugen)
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              className="flex-1 min-w-0 bg-slate-950 border border-slate-700/80 focus:border-amber-500/60 rounded-md px-2.5 py-1.5 text-xs text-slate-200 outline-none"
+              placeholder="Bijv. 'alleen security' of 'jij-toon, max 8 bullets'…"
+              title="Alleen voor deze knopklik. Wordt niet opgeslagen. Vaste afspraken voor de hele sessie zet je in Geheugen (bij Chat)."
+              value={instructions}
+              disabled={!sessionId || Boolean(busyAction)}
+              onChange={(e) => setInstructions(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && canRun) runAction(action);
+              }}
+            />
+            <button
+              type="button"
+              disabled={!canRun}
+              onClick={() => runAction(action)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-xs font-medium text-white transition-colors shrink-0"
+              title={
+                activeAction.needsDraft && !draft.trim()
+                  ? "Typ eerst steekwoorden of concepttekst in het tekstvak"
+                  : `${activeAction.description}. De extra instructie links gaat alleen met deze klik mee.`
+              }
+            >
+              <ActionIcon className="w-3.5 h-3.5" aria-hidden />
+              {busyLabel ?? activeAction.label}
+            </button>
+          </div>
         </div>
 
         {contextLabel && <p className="text-[11px] text-slate-500">{contextLabel}</p>}
