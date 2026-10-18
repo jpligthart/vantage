@@ -261,7 +261,7 @@ export default function App() {
 
   async function handleAddWeb(url: string, mode: "page" | "site", title?: string) {
     try {
-      setStatusText(mode === "site" ? "DokuWiki ophalen…" : "Pagina ophalen…");
+      setStatusText(mode === "site" ? "DokuWiki ophalen…" : "Website ophalen…");
       const { sourceId } = await createWebSource(url, mode, title);
       await addSourceToSession(sourceId);
     } catch (error) {
@@ -271,7 +271,7 @@ export default function App() {
 
   async function handleWebDefault(url: string, mode: "page" | "site", title?: string) {
     try {
-      setStatusText(mode === "site" ? "DokuWiki als kader ophalen…" : "Pagina als kader ophalen…");
+      setStatusText(mode === "site" ? "DokuWiki als kader ophalen…" : "Website als kader ophalen…");
       const { sourceId } = await createWebSource(url, mode, title, {
         isReference: true,
         isDefault: true,
@@ -304,7 +304,7 @@ export default function App() {
       if (result.outcome === "updated") {
         setStatusText("Document verwerken…");
       } else if (result.outcome === "unchanged") {
-        setStatusText("Geen wijzigingen op de wiki.");
+        setStatusText("Geen wijzigingen op de site.");
       } else {
         setStatusText(null);
       }

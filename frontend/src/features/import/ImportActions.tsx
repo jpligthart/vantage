@@ -128,7 +128,7 @@ export function ImportActions({
             }}
           >
             <Globe className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden />
-            URL / DokuWiki…
+            URL / website…
           </button>
         ) : null}
       </div>
@@ -185,11 +185,11 @@ export function ImportActions({
         >
           <div className="bg-slate-900 border border-slate-700 rounded-lg w-full max-w-lg p-4 space-y-3 shadow-xl">
             <h2 id="web-dialog-title" className="text-sm font-medium">
-              Website / DokuWiki importeren
+              Website of DokuWiki importeren
             </h2>
             <p className="text-[11px] text-slate-400">
-              Snapshot wordt opgeslagen en doorzoekbaar via chat. Gebruik DokuWiki-site voor meerdere
-              pagina&apos;s.
+              Snapshot wordt opgeslagen en is doorzoekbaar in de chat. Eén pagina werkt voor elke
+              publieke URL; meerdere pagina&apos;s alleen voor DokuWiki.
             </p>
             {webError && <p className="text-xs text-amber-400">{webError}</p>}
             <input
@@ -215,7 +215,7 @@ export function ImportActions({
                 }`}
                 onClick={() => setWebMode("page")}
               >
-                Één pagina
+                Website (1 pagina)
               </button>
               <button
                 type="button"
@@ -226,7 +226,7 @@ export function ImportActions({
                 }`}
                 onClick={() => setWebMode("site")}
               >
-                DokuWiki-site
+                DokuWiki (meerdere pagina&apos;s)
               </button>
             </div>
             <div className="flex justify-end gap-2">

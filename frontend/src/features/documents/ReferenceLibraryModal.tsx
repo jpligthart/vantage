@@ -318,7 +318,7 @@ export function ReferenceLibraryModal({
                   className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
                 >
                   <Globe className="w-3.5 h-3.5" aria-hidden />
-                  URL / wiki
+                  URL / website
                 </button>
               </div>
             </div>
@@ -381,7 +381,7 @@ export function ReferenceLibraryModal({
                     }`}
                     onClick={() => setWebMode("page")}
                   >
-                    Één pagina
+                    Website (1 pagina)
                   </button>
                   <button
                     type="button"
@@ -392,7 +392,7 @@ export function ReferenceLibraryModal({
                     }`}
                     onClick={() => setWebMode("site")}
                   >
-                    DokuWiki-site
+                    DokuWiki (meerdere pagina&apos;s)
                   </button>
                 </div>
                 <div className="flex justify-end gap-2">
