@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from app.agents.citations import CitationStreamFilter, build_citation_items, strip_markers_from_stream
 from app.agents.prompts import (
     BASE_SYSTEM_PROMPT,
+    CHAT_STYLE_PROMPT,
     FEEDBACK_ACTION_PROMPTS,
+    FEEDBACK_STYLE_PROMPT,
     FEEDBACK_SYSTEM_PROMPT,
     MODE_PROMPTS,
     RETRIEVED_REFERENCES_NOTE,
@@ -351,7 +353,7 @@ async def stream_chat(
 
     skipped = [source.name for source in selected if source.status != SourceStatus.ready]
     mode_prompt = MODE_PROMPTS.get(mode.value, MODE_PROMPTS["spar"])
-    system = f"{BASE_SYSTEM_PROMPT}\n\n{mode_prompt}"
+    system = f"{BASE_SYSTEM_PROMPT}\n\n{mode_prompt}\n\n{CHAT_STYLE_PROMPT}"
     if skipped:
         system += (
             "\n\nDeze bronnen zijn aangevinkt maar nog niet beschikbaar, neem ze niet mee: "
@@ -628,7 +630,10 @@ async def stream_feedback(
         )
         return
 
-    system = f"{FEEDBACK_SYSTEM_PROMPT}\n\nOPDRACHT:\n{action_prompt}"
+    system = (
+        f"{FEEDBACK_SYSTEM_PROMPT}\n\n{FEEDBACK_STYLE_PROMPT}\n\n"
+        f"OPDRACHT:\n{action_prompt}"
+    )
     if selection and selection.strip():
         system += f"\n\nGESELECTEERDE PASSAGE:\n{selection.strip()}"
 

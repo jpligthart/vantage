@@ -60,6 +60,21 @@ RETRIEVED_REFERENCES_NOTE = (
     "op de meegeleverde passages; verzin geen inhoud uit ontbrekende delen."
 )
 
+# Style/length only — keep content rules in BASE / FEEDBACK system prompts.
+CHAT_STYLE_PROMPT = """STIJL EN LENGTE (chat naar de docent):
+- Schrijf kort en zakelijk Nederlands; geen inleidende filler ("Goede vraag", "Natuurlijk", "Samenvattend").
+- Begin direct met de kern. Gebruik bullets of korte alinea's; vermijd lange essays.
+- Standaardantwoord: ongeveer 3–8 bullets of 1–3 korte alinea's, tenzij de docent om meer diepte vraagt.
+- Herhaal niet wat de docent zojuist zei. Geen afsluitende meta-vraag tenzij die echt nodig is.
+- Citatiemarkers blijven compact in de lopende tekst; geen apart bronnenessay."""
+
+FEEDBACK_STYLE_PROMPT = """STIJL EN LENGTE (feedback naar de student):
+- Spreek de student direct aan met "je".
+- Schrijf helder, concreet en constructief; geen wollige inleiding of afsluitende meta-opmerkingen aan de docent.
+- Structureer bij voorkeur in korte blokken of bullets: sterke punten, aandachtspunten, concrete vervolgstappen of vragen.
+- Houd het leesbaar: liever scherp en beknopt dan uitputtend; werk niet elk detail uit tenzij de opdracht dat vraagt.
+- Geen cijfer, rubricscores of eindlabel (voldoende/onvoldoende), tenzij de docent daar expliciet om vraagt."""
+
 MODE_PROMPTS = {
     "explore": (
         "Modus: Verkennen. Beschrijf en structureer het document. "
