@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -27,6 +27,10 @@ const ACTIONS: {
   description: string;
   icon: typeof Sparkles;
   needsDraft: boolean;
+  emptyTitle: string;
+  emptyBody: string;
+  emptyExamples: string[];
+  emptyCta: string;
 }[] = [
   {
     id: "compose",
@@ -36,6 +40,14 @@ const ACTIONS: {
     description: "Genereer nieuwe conceptfeedback op basis van de aangevinkte bronnen",
     icon: Sparkles,
     needsDraft: false,
+    emptyTitle: "Nog geen feedback",
+    emptyBody:
+      "Klik rechtsboven op Opstellen. De AI maakt een nieuw concept op basis van de aangevinkte bronnen. Je kunt daarna zelf bijwerken of een andere actie kiezen.",
+    emptyExamples: [
+      "Optioneel: typ alvast aantekeningen die meegenomen mogen worden",
+      "Gebruik de extra instructie hierboven voor iets eenmaligs, bijv. 'alleen security'",
+    ],
+    emptyCta: "Of typ zelf aantekeningen…",
   },
   {
     id: "expand",
@@ -45,6 +57,15 @@ const ACTIONS: {
     description: "Werk je eigen steekwoorden of korte punten in het tekstvak uit met voorbeelden en bronverwijzingen",
     icon: Wand2,
     needsDraft: true,
+    emptyTitle: "Eerst steekwoorden typen",
+    emptyBody:
+      "Typ korte bullets of steekwoorden. Daarna werkt Aanvullen ze uit met voorbeelden en bronverwijzingen uit de documenten.",
+    emptyExamples: [
+      "Probleemstelling is nog te breed geformuleerd",
+      "Architectuurkeuze goed onderbouwd, maar security ontbreekt",
+      "Vraag hoe testresultaten terugkoppelen naar ontwerpkeuzes",
+    ],
+    emptyCta: "Typ steekwoorden…",
   },
   {
     id: "rewrite",
@@ -54,6 +75,15 @@ const ACTIONS: {
     description: "Herschrijf je concepttekst scherper, constructiever en goed gestructureerd",
     icon: FileEdit,
     needsDraft: true,
+    emptyTitle: "Eerst een concept plakken of typen",
+    emptyBody:
+      "Plak of typ je eigen conceptfeedback. Herschrijven maakt die scherper, constructiever en beter gestructureerd — zonder alles opnieuw te verzinnen.",
+    emptyExamples: [
+      "Je hebt een duidelijke probleemstelling…",
+      "De architectuurkeuze is goed onderbouwd, alleen…",
+      "Volgende stap: licht toe hoe je…",
+    ],
+    emptyCta: "Plak of typ je concept…",
   },
 ];
 
@@ -102,6 +132,8 @@ export function FeedbackPanel({
   const [sourcesCollapsed, setSourcesCollapsed] = useState(
     () => localStorage.getItem(SOURCES_COLLAPSED_KEY) !== "0",
   );
+  const [forceEditor, setForceEditor] = useState(false);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep selectedSourceIds in sync when session sources change (default: all attached sources selected)
   useEffect(() => {
@@ -119,6 +151,7 @@ export function FeedbackPanel({
     setCitations([]);
     setError(null);
     setContextLabel(null);
+    setForceEditor(false);
   }, [sessionId, conversationId]);
 
   useEffect(() => {
@@ -136,6 +169,14 @@ export function FeedbackPanel({
   const busyLabel = ACTIONS.find((a) => a.id === busyAction)?.busyLabel;
   const selectedCount = sources.filter((s) => selectedSourceIds.includes(s.id)).length;
   const ActionIcon = activeAction.icon;
+  const hasDraft = Boolean(draft.trim());
+  const showEditor = hasDraft || forceEditor || Boolean(busyAction);
+
+  function startTyping() {
+    setForceEditor(true);
+    setViewMode("edit");
+    window.setTimeout(() => editorRef.current?.focus(), 0);
+  }
 
   function toggleSource(id: string) {
     setSelectedSourceIds((prev) => {
@@ -493,7 +534,27 @@ export function FeedbackPanel({
           </div>
         )}
 
-        {viewMode === "preview" && draft.trim() ? (
+        {!showEditor ? (
+          <div className="flex-1 min-h-0 flex flex-col items-start justify-center gap-3 px-1 py-2">
+            <div className="space-y-1.5 max-w-lg">
+              <p className="text-sm font-medium text-slate-200">{activeAction.emptyTitle}</p>
+              <p className="text-xs text-slate-400 leading-relaxed">{activeAction.emptyBody}</p>
+            </div>
+            <ul className="space-y-1 text-xs text-slate-500 list-disc pl-4 max-w-lg">
+              {activeAction.emptyExamples.map((example) => (
+                <li key={example}>{example}</li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              disabled={!sessionId}
+              onClick={startTyping}
+              className="text-xs text-amber-400/90 hover:text-amber-300 underline underline-offset-2 disabled:opacity-40"
+            >
+              {activeAction.emptyCta}
+            </button>
+          </div>
+        ) : viewMode === "preview" && hasDraft ? (
           <div
             onDoubleClick={() => {
               if (!busyAction) setViewMode("edit");
@@ -505,18 +566,27 @@ export function FeedbackPanel({
           </div>
         ) : (
           <textarea
-            className="flex-1 w-full bg-slate-900/90 border border-slate-700/80 focus:border-amber-500/60 rounded-lg p-3 text-sm text-slate-100 leading-relaxed outline-none resize-none font-sans"
+            ref={editorRef}
+            className={cn(
+              "flex-1 w-full rounded-lg p-3 text-sm leading-relaxed outline-none resize-none font-sans",
+              hasDraft
+                ? "bg-slate-900/90 border border-slate-700/80 focus:border-amber-500/60 text-slate-100"
+                : "bg-transparent border border-dashed border-slate-700/70 focus:border-amber-500/60 text-slate-200 placeholder:text-slate-500",
+            )}
             placeholder={
-              "Schrijf hier je eigen steekwoorden of conceptfeedback, of klik op 'Opstellen'.\n\n" +
-              "Voorbeeld steekwoorden voor 'Aanvullen':\n" +
-              "- Probleemstelling is nog te breed geformuleerd\n" +
-              "- Architectuurkeuze goed onderbouwd, maar security-aspecten ontbreken\n" +
-              "- Vraag student hoe de testresultaten terugkoppelen naar de ontwerpkeuzes"
+              action === "expand"
+                ? "Typ hier je steekwoorden, één per regel…"
+                : action === "rewrite"
+                  ? "Plak of typ hier je conceptfeedback…"
+                  : "Optionele aantekeningen, of laat leeg en klik op Opstellen…"
             }
             value={draft}
             disabled={!sessionId || Boolean(busyAction)}
             onChange={(e) => onDraftChange(e.target.value)}
-            onBlur={() => onSaveDraft()}
+            onBlur={() => {
+              onSaveDraft();
+              if (!draft.trim()) setForceEditor(false);
+            }}
           />
         )}
 
