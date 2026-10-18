@@ -86,15 +86,15 @@ export function SourceBar({
       </div>
 
       {/* Row 2: Source tabs + Add button */}
-      <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap">
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
+      <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
           {sources.map((source) => {
             const active = source.id === activeSourceId;
             const isRef = Boolean(source.isReference);
             return (
               <div
                 key={source.id}
-                className={`group flex items-center max-w-[18rem] rounded-md border text-xs transition-colors ${
+                className={`group flex items-center min-w-0 max-w-[min(18rem,100%)] rounded-md border text-xs transition-colors ${
                   active
                     ? "border-amber-500/80 bg-amber-500/10 text-amber-100 font-medium"
                     : "border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200"
