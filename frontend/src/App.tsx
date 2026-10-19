@@ -851,9 +851,9 @@ export default function App() {
           >
             {sessionSidebarOpen ? (
               <>
-                <div className="flex items-center justify-between gap-1 px-3 py-2.5 border-b border-slate-800/70">
+                <div className="flex items-center justify-between gap-1 px-3 h-10 border-b border-slate-800/70 shrink-0">
                   <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <FolderOpen className="w-3.5 h-3.5 text-amber-500/80" aria-hidden />
+                    <FolderOpen className="w-4 h-4 text-amber-500/80" aria-hidden />
                     Sessies
                   </span>
                   <div className="flex items-center gap-1">
@@ -894,28 +894,30 @@ export default function App() {
                 />
               </>
             ) : (
-              <div className="flex flex-col items-center gap-1.5 py-2.5 px-1 border-b border-slate-800/70">
-                <span title="Sessies" className="p-1 text-amber-500/80" aria-hidden>
-                  <FolderOpen className="w-4 h-4" />
-                </span>
-                <button
-                  type="button"
-                  title="Sessies vastzetten"
-                  aria-label="Sessies vastzetten"
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                  onClick={toggleSessionSidebar}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  title="Nieuwe sessie"
-                  aria-label="Nieuwe sessie"
-                  className="p-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white transition-colors"
-                  onClick={openNewSessionDialog}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+              <div className="flex flex-col items-center px-1 border-b border-slate-800/70">
+                <div className="h-10 flex items-center justify-center" title="Sessies">
+                  <FolderOpen className="w-4 h-4 text-amber-500/80" aria-hidden />
+                </div>
+                <div className="flex flex-col items-center gap-1.5 pb-2.5">
+                  <button
+                    type="button"
+                    title="Sessies vastzetten"
+                    aria-label="Sessies vastzetten"
+                    className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                    onClick={toggleSessionSidebar}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Nieuwe sessie"
+                    aria-label="Nieuwe sessie"
+                    className="p-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white transition-colors"
+                    onClick={openNewSessionDialog}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </aside>
@@ -925,9 +927,9 @@ export default function App() {
               role="dialog"
               aria-label="Sessies"
             >
-              <div className="flex items-center justify-between gap-1 px-3 py-2.5 border-b border-slate-800/70 shrink-0">
+              <div className="flex items-center justify-between gap-1 px-3 h-10 border-b border-slate-800/70 shrink-0">
                 <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  <FolderOpen className="w-3.5 h-3.5 text-amber-500/80" aria-hidden />
+                  <FolderOpen className="w-4 h-4 text-amber-500/80" aria-hidden />
                   Sessies
                 </span>
                 <button
@@ -960,19 +962,21 @@ export default function App() {
         </div>
         <div className="flex flex-1 min-h-0 min-w-0">
           {!docPanelOpen && (
-            <aside className="w-10 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col items-center gap-1.5 py-2.5">
-              <span title="Bronnen" className="p-1 text-amber-500/80" aria-hidden>
-                <FileText className="w-4 h-4" />
-              </span>
-              <button
-                type="button"
-                title="Document vastzetten"
-                aria-label="Document vastzetten"
-                className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                onClick={toggleDocPanel}
-              >
-                <ChevronRight className="w-4 h-4" aria-hidden />
-              </button>
+            <aside className="w-10 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col items-center">
+              <div className="h-10 flex items-center justify-center" title="Bronnen">
+                <FileText className="w-4 h-4 text-amber-500/80" aria-hidden />
+              </div>
+              <div className="flex flex-col items-center pb-2.5">
+                <button
+                  type="button"
+                  title="Document vastzetten"
+                  aria-label="Document vastzetten"
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                  onClick={toggleDocPanel}
+                >
+                  <ChevronRight className="w-4 h-4" aria-hidden />
+                </button>
+              </div>
             </aside>
           )}
           <ResizableColumns
