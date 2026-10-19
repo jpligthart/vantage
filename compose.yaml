@@ -11,13 +11,14 @@ services:
         - linux/arm64
         - linux/amd64
       args:
-        APP_VERSION: ${IMAGE_TAG:-0.1.0}
+        # Empty → backend uses pyproject version; set IMAGE_TAG to override (e.g. 0.2.1).
+        APP_VERSION: ${IMAGE_TAG:-}
         GIT_SHA: ${GIT_SHA:-}
       labels:
         org.opencontainers.image.title: "Vantage Backend"
         org.opencontainers.image.description: "FastAPI backend & Docling document processing for Vantage"
         org.opencontainers.image.vendor: "Fontys ICT"
-        org.opencontainers.image.version: "${IMAGE_TAG:-0.1.0}"
+        org.opencontainers.image.version: "${IMAGE_TAG:-}"
         org.opencontainers.image.revision: "${GIT_SHA:-}"
         org.opencontainers.image.source: "${OCI_IMAGE_SOURCE:-https://github.com/jpligthart/vantage}"
         org.opencontainers.image.licenses: "MIT"
@@ -32,7 +33,7 @@ services:
       OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
       OLLAMA_HOST: http://host.docker.internal:11434
       CORS_ORIGINS: http://127.0.0.1:${HOST_WEB_PORT:-7847},http://localhost:${HOST_WEB_PORT:-7847}
-      APP_VERSION: ${IMAGE_TAG:-0.1.0}
+      APP_VERSION: ${IMAGE_TAG:-}
       GIT_SHA: ${GIT_SHA:-}
     volumes:
       - ./data:/app/data
@@ -57,13 +58,14 @@ services:
         - linux/arm64
         - linux/amd64
       args:
-        APP_VERSION: ${IMAGE_TAG:-0.1.0}
+        # Empty → Vite reads frontend/package.json; set IMAGE_TAG to override.
+        APP_VERSION: ${IMAGE_TAG:-}
         GIT_SHA: ${GIT_SHA:-}
       labels:
         org.opencontainers.image.title: "Vantage Frontend"
         org.opencontainers.image.description: "React web UI (Nginx) for Vantage"
         org.opencontainers.image.vendor: "Fontys ICT"
-        org.opencontainers.image.version: "${IMAGE_TAG:-0.1.0}"
+        org.opencontainers.image.version: "${IMAGE_TAG:-}"
         org.opencontainers.image.revision: "${GIT_SHA:-}"
         org.opencontainers.image.source: "${OCI_IMAGE_SOURCE:-https://github.com/jpligthart/vantage}"
         org.opencontainers.image.licenses: "MIT"

@@ -1,6 +1,7 @@
 FROM python:3.12-slim-bookworm AS base
 
-ARG APP_VERSION=0.1.0
+# Leave APP_VERSION empty to use pyproject version at runtime.
+ARG APP_VERSION=
 ARG GIT_SHA=
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

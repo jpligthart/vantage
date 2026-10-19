@@ -798,7 +798,7 @@ export default function App() {
           <img src="/logo.svg" alt="" width={22} height={22} className="rounded-[5px]" />
           Vantage
           <span
-            className="text-[10px] font-normal text-slate-600 tabular-nums select-none"
+            className="text-[10px] font-normal text-slate-500 tabular-nums select-none"
             title={versionTitle()}
             aria-label={`Versie ${APP_VERSION}`}
           >

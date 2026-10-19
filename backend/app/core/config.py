@@ -1,14 +1,23 @@
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version as pkg_version
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def package_version() -> str:
+    try:
+        return pkg_version("vantage-backend")
+    except PackageNotFoundError:
+        return "0.0.0"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "development"
-    app_version: str = "0.1.0"
+    app_version: str = ""
     git_sha: str = ""
     log_level: str = "INFO"
     data_dir: Path = Path("./data")
@@ -30,6 +39,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:7847,http://localhost:7847,"
         "http://127.0.0.1:5173,http://localhost:5173"
     )
+
+    @field_validator("app_version", mode="before")
+    @classmethod
+    def _default_app_version(cls, value: object) -> str:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return package_version()
+        return str(value).strip()
 
     @property
     def cors_origin_list(self) -> list[str]:

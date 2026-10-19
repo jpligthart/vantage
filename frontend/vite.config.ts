@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
   const devPort = Number(env.VITE_DEV_PORT) || 7847;
   const proxyTarget =
     env.VITE_PROXY_TARGET || env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
-  const appVersion = process.env.VITE_APP_VERSION || packageVersion();
+  const appVersion = process.env.VITE_APP_VERSION?.trim() || packageVersion();
   const gitSha = resolveGitSha();
 
   return {
