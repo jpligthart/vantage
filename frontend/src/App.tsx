@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookMarked, ChevronLeft, ChevronRight, FileEdit, MessageSquare, Plus } from "lucide-react";
+import {
+  BookMarked,
+  ChevronLeft,
+  ChevronRight,
+  FileEdit,
+  MessageSquare,
+  PanelLeft,
+  PanelLeftClose,
+  Plus,
+} from "lucide-react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
@@ -41,10 +50,21 @@ import type { CitationDto, MessageDto, SessionDetail, SessionDto, SourceDto } fr
 
 const MODEL_KEY = "review-assistant-model";
 const SESSION_SIDEBAR_KEY = "review-assistant-session-sidebar";
+const DOC_PANEL_KEY = "review-assistant-doc-panel";
 
 function readSessionSidebarOpen(): boolean {
   try {
     const raw = localStorage.getItem(SESSION_SIDEBAR_KEY);
+    if (raw == null) return true;
+    return raw !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function readDocPanelOpen(): boolean {
+  try {
+    const raw = localStorage.getItem(DOC_PANEL_KEY);
     if (raw == null) return true;
     return raw !== "0";
   } catch {
@@ -62,6 +82,7 @@ export default function App() {
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string | null>(() => localStorage.getItem(MODEL_KEY));
   const [sessionSidebarOpen, setSessionSidebarOpen] = useState(readSessionSidebarOpen);
+  const [docPanelOpen, setDocPanelOpen] = useState(readDocPanelOpen);
   const [sessionFlyoutOpen, setSessionFlyoutOpen] = useState(false);
   const [highlight, setHighlight] = useState<CitationDto | null>(null);
   const [selection, setSelection] = useState<{ text: string; chunkId?: string } | undefined>();
@@ -356,6 +377,18 @@ export default function App() {
       const next = !open;
       try {
         localStorage.setItem(SESSION_SIDEBAR_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
+  function toggleDocPanel() {
+    setDocPanelOpen((open) => {
+      const next = !open;
+      try {
+        localStorage.setItem(DOC_PANEL_KEY, next ? "1" : "0");
       } catch {
         /* ignore */
       }
@@ -736,6 +769,12 @@ export default function App() {
   }
 
   function onCitationClick(citation: CitationDto) {
+    setDocPanelOpen(true);
+    try {
+      localStorage.setItem(DOC_PANEL_KEY, "1");
+    } catch {
+      /* ignore */
+    }
     setHighlight(citation);
     if (citation.sourceId && sources.some((source) => source.id === citation.sourceId)) {
       setActiveSourceId(citation.sourceId);
@@ -910,91 +949,23 @@ export default function App() {
             </div>
           )}
         </div>
-        <ResizableColumns
-          storageKey="review-assistant-doc-chat-ratio"
-          defaultTrailingRatio={0.58}
-          leadingMinPx={240}
-          trailingMinPx={300}
-          leading={
-            <main
-              className="flex flex-1 flex-col min-h-0 min-w-0 h-full"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={onDocumentDrop}
-            >
-              {statusText && (
-                <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">{statusText}</div>
-              )}
-              {activeSessionId && (
-                <SourceBar
-                  sources={sources}
-                  activeSourceId={activeSourceId}
-                  sessionTitle={detail?.title ?? ""}
-                  library={library}
-                  onRenameSession={saveSessionTitle}
-                  onSelect={setActiveSourceId}
-                  onDetach={handleDetach}
-                  onFile={handleAddFile}
-                  onPasteText={handleAddPaste}
-                  onWebUrl={handleAddWeb}
-                  onAttachExisting={addSourceToSession}
-                  onToggleReference={handleToggleReference}
-                  onOpenLibrary={() => {
-                    listSources().then(setLibrary).catch(() => setLibrary([]));
-                  }}
-                />
-              )}
-              {activeSource?.status === "failed" && (
-                <div className="px-4 py-2 text-sm text-red-400 shrink-0">{activeSource.error}</div>
-              )}
-              <div className="flex-1 min-h-0 flex flex-col">
-                {activeSource && sourceReady ? (
-                  <>
-                    <DocumentChrome source={activeSource} />
-                    {activeSource.type === "pdf" ? (
-                      <PdfViewer
-                        sourceId={activeSource.id}
-                        highlight={highlight?.sourceId === activeSource.id ? highlight : null}
-                        onTextSelect={(text) => setSelection({ text })}
-                      />
-                    ) : (
-                      <div className="flex-1 min-h-0 flex flex-col">
-                        <DocxViewer
-                          sourceId={activeSource.id}
-                          highlight={highlight?.sourceId === activeSource.id ? highlight : null}
-                        />
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-slate-500 text-sm px-6 text-center">
-                    {activeSessionId
-                      ? activeSource
-                        ? "Wacht op document…"
-                        : "Voeg een document toe aan deze sessie"
-                      : "Start een nieuwe sessie links, of sleep een bestand hierheen"}
-                  </div>
-                )}
-              </div>
-              {sourceReady && selection?.text && (
-                <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs shrink-0">
-                  <span className="text-slate-400 truncate flex-1">
-                    Selectie: {selection.text.slice(0, 80)}
-                    {selection.text.length > 80 ? "…" : ""}
-                  </span>
-                  <button
-                    type="button"
-                    className="text-amber-400 underline shrink-0"
-                    onClick={() => setSelection(undefined)}
-                  >
-                    wissen
-                  </button>
-                </div>
-              )}
-            </main>
-          }
-          trailing={
+        {(() => {
+          const rightPanel = (
             <section className="min-h-0 flex flex-col h-full">
               <div className="box-content flex items-end gap-1 px-3 h-10 border-b border-slate-800 bg-slate-900 shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleDocPanel}
+                  title={docPanelOpen ? "Document verbergen" : "Document tonen"}
+                  aria-label={docPanelOpen ? "Document verbergen" : "Document tonen"}
+                  className="mb-1 p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                >
+                  {docPanelOpen ? (
+                    <PanelLeftClose className="w-4 h-4" aria-hidden />
+                  ) : (
+                    <PanelLeft className="w-4 h-4" aria-hidden />
+                  )}
+                </button>
                 <button
                   type="button"
                   onClick={() => setRightTab("chat")}
@@ -1085,8 +1056,110 @@ export default function App() {
                 </div>
               </div>
             </section>
+          );
+
+          if (!docPanelOpen) {
+            return (
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+                {statusText && (
+                  <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">
+                    {statusText}
+                  </div>
+                )}
+                <div className="flex-1 min-h-0">{rightPanel}</div>
+              </div>
+            );
           }
-        />
+
+          return (
+            <ResizableColumns
+              storageKey="review-assistant-doc-chat-ratio"
+              defaultTrailingRatio={0.58}
+              leadingMinPx={240}
+              trailingMinPx={300}
+              leading={
+                <main
+                  className="flex flex-1 flex-col min-h-0 min-w-0 h-full"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={onDocumentDrop}
+                >
+                  {statusText && (
+                    <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">
+                      {statusText}
+                    </div>
+                  )}
+                  {activeSessionId && (
+                    <SourceBar
+                      sources={sources}
+                      activeSourceId={activeSourceId}
+                      sessionTitle={detail?.title ?? ""}
+                      library={library}
+                      onRenameSession={saveSessionTitle}
+                      onSelect={setActiveSourceId}
+                      onDetach={handleDetach}
+                      onFile={handleAddFile}
+                      onPasteText={handleAddPaste}
+                      onWebUrl={handleAddWeb}
+                      onAttachExisting={addSourceToSession}
+                      onToggleReference={handleToggleReference}
+                      onOpenLibrary={() => {
+                        listSources().then(setLibrary).catch(() => setLibrary([]));
+                      }}
+                    />
+                  )}
+                  {activeSource?.status === "failed" && (
+                    <div className="px-4 py-2 text-sm text-red-400 shrink-0">{activeSource.error}</div>
+                  )}
+                  <div className="flex-1 min-h-0 flex flex-col">
+                    {activeSource && sourceReady ? (
+                      <>
+                        <DocumentChrome source={activeSource} />
+                        {activeSource.type === "pdf" ? (
+                          <PdfViewer
+                            sourceId={activeSource.id}
+                            highlight={highlight?.sourceId === activeSource.id ? highlight : null}
+                            onTextSelect={(text) => setSelection({ text })}
+                          />
+                        ) : (
+                          <div className="flex-1 min-h-0 flex flex-col">
+                            <DocxViewer
+                              sourceId={activeSource.id}
+                              highlight={highlight?.sourceId === activeSource.id ? highlight : null}
+                            />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-slate-500 text-sm px-6 text-center">
+                        {activeSessionId
+                          ? activeSource
+                            ? "Wacht op document…"
+                            : "Voeg een document toe aan deze sessie"
+                          : "Start een nieuwe sessie links, of sleep een bestand hierheen"}
+                      </div>
+                    )}
+                  </div>
+                  {sourceReady && selection?.text && (
+                    <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs shrink-0">
+                      <span className="text-slate-400 truncate flex-1">
+                        Selectie: {selection.text.slice(0, 80)}
+                        {selection.text.length > 80 ? "…" : ""}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-amber-400 underline shrink-0"
+                        onClick={() => setSelection(undefined)}
+                      >
+                        wissen
+                      </button>
+                    </div>
+                  )}
+                </main>
+              }
+              trailing={rightPanel}
+            />
+          );
+        })()}
       </div>
       {newSessionOpen && (
         <NewSessionDialog
