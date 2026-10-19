@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from datetime import datetime, timezone
 
 import httpx
@@ -36,6 +38,38 @@ from app.models.entities import (
 from app.sessions.service import get_session_memory, session_sources, set_feedback_draft
 
 logger = logging.getLogger(__name__)
+
+# Keep proxies/browsers from idle-closing SSE while Ollama is quiet between tokens.
+SSE_KEEPALIVE_SECONDS = 15.0
+
+
+async def _aiter_text_with_heartbeat(
+    source: AsyncIterator[str],
+    *,
+    interval_seconds: float = SSE_KEEPALIVE_SECONDS,
+) -> AsyncIterator[tuple[str, str | None]]:
+    """Yield ("heartbeat", None) while idle, or ("text", piece) for model output."""
+    iterator = source.__aiter__()
+    nxt: asyncio.Task[str] = asyncio.ensure_future(iterator.__anext__())
+    try:
+        while True:
+            done, _ = await asyncio.wait({nxt}, timeout=interval_seconds)
+            if not done:
+                yield ("heartbeat", None)
+                continue
+            try:
+                piece = nxt.result()
+            except StopAsyncIteration:
+                return
+            yield ("text", piece)
+            nxt = asyncio.ensure_future(iterator.__anext__())
+    finally:
+        if not nxt.done():
+            nxt.cancel()
+            with suppress(asyncio.CancelledError):
+                await nxt
+        with suppress(Exception):
+            await source.aclose()
 
 
 class CitedChunk:
@@ -739,29 +773,46 @@ async def stream_feedback(
         f"{user_message}"
     )
 
+    first_source = documents[0][0]
+    first_source_id = first_source.id
+    first_source_name = first_source.name
+    session_id = session.id
+    conversation_id = conversation.id if conversation else None
+
     full_response = ""
     stream_filter = CitationStreamFilter()
     last_saved_len = 0
 
-    def _save_feedback_progress() -> str:
+    def _save_feedback_progress(*, raise_on_error: bool = False) -> str:
         display_text = strip_markers_from_stream(full_response).strip()
-        if display_text:
+        if not display_text:
+            return display_text
+        try:
             set_feedback_draft(
                 db,
-                session.id,
+                session_id,
                 display_text,
-                conversation_id=conversation.id if conversation else None,
+                conversation_id=conversation_id,
             )
+        except Exception:
+            logger.exception("Failed to save feedback draft progress")
+            if raise_on_error:
+                raise
         return display_text
 
     try:
-        async for text in _stream_ollama_tokens(
+        token_stream = _stream_ollama_tokens(
             ollama_host=settings.ollama_host,
             model_name=model_name,
             system=system,
             prompt=prompt,
             timeout_seconds=settings.chat_timeout_seconds,
-        ):
+        )
+        async for kind, text in _aiter_text_with_heartbeat(token_stream):
+            if kind == "heartbeat":
+                yield ("heartbeat", {})
+                continue
+            assert text is not None
             full_response += text
             cleaned = stream_filter.feed(text)
             if cleaned:
@@ -772,55 +823,53 @@ async def stream_feedback(
         tail = stream_filter.flush()
         if tail:
             yield ("token", {"text": tail})
-    except (GeneratorExit, BaseException) as exc:
+
+        citation_items = build_citation_items(
+            full_response,
+            index_map,
+            first_source_id,
+            first_source_name,
+            chunk_bbox,
+        )
+        display_text = _save_feedback_progress(raise_on_error=True)
+
+        yield (
+            "citations",
+            {
+                "items": [
+                    {
+                        "chunkId": c.chunk_id,
+                        "sourceId": c.source_id,
+                        "documentName": c.document_name,
+                        "pageNo": c.page_no,
+                        "sectionTitle": c.section_title,
+                        "excerpt": c.excerpt,
+                        "bbox": c.bbox,
+                        "anchorId": c.anchor_id,
+                        "promptIndex": c.prompt_index,
+                    }
+                    for c in citation_items
+                ]
+            },
+        )
+        yield ("done", {"content": display_text})
+    except GeneratorExit:
         if full_response.strip():
-            try:
-                _save_feedback_progress()
-            except Exception:
-                logger.exception("Failed to save partial feedback draft")
-        if isinstance(exc, httpx.HTTPError):
-            logger.exception("Ollama unavailable")
-            yield (
-                "error",
-                {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
-            )
-            return
-        if isinstance(exc, Exception):
-            logger.exception("Feedback generation failed")
-            yield ("error", {"code": "feedback_failed", "message": str(exc)[:500]})
-            return
+            _save_feedback_progress()
         raise
-
-    first_source = documents[0][0]
-    citation_items = build_citation_items(
-        full_response,
-        index_map,
-        first_source.id,
-        first_source.name,
-        chunk_bbox,
-    )
-    display_text = _save_feedback_progress()
-
-    yield (
-        "citations",
-        {
-            "items": [
-                {
-                    "chunkId": c.chunk_id,
-                    "sourceId": c.source_id,
-                    "documentName": c.document_name,
-                    "pageNo": c.page_no,
-                    "sectionTitle": c.section_title,
-                    "excerpt": c.excerpt,
-                    "bbox": c.bbox,
-                    "anchorId": c.anchor_id,
-                    "promptIndex": c.prompt_index,
-                }
-                for c in citation_items
-            ]
-        },
-    )
-    yield ("done", {"content": display_text})
+    except httpx.HTTPError as exc:
+        if full_response.strip():
+            _save_feedback_progress()
+        logger.exception("Ollama unavailable")
+        yield (
+            "error",
+            {"code": "ollama_unavailable", "message": f"Ollama niet bereikbaar: {exc}"},
+        )
+    except Exception as exc:
+        if full_response.strip():
+            _save_feedback_progress()
+        logger.exception("Feedback generation failed")
+        yield ("error", {"code": "feedback_failed", "message": str(exc)[:500]})
 
 
 async def _get_context_len(model_name: str) -> int | None:

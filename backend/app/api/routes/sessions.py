@@ -244,18 +244,26 @@ async def generate_conversation_feedback(
     conversation = get_conversation_or_404(db, session_id, conversation_id)
 
     async def event_generator():
-        async for event_type, payload in stream_feedback(
-            db,
-            session,
-            body.action,
-            body.model,
-            body.draft,
-            instructions=body.instructions,
-            selection=body.selection,
-            conversation=conversation,
-            source_ids=body.sourceIds,
-        ):
-            yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        try:
+            async for event_type, payload in stream_feedback(
+                db,
+                session,
+                body.action,
+                body.model,
+                body.draft,
+                instructions=body.instructions,
+                selection=body.selection,
+                conversation=conversation,
+                source_ids=body.sourceIds,
+            ):
+                if event_type == "heartbeat":
+                    yield ": ping\n\n"
+                    continue
+                yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        except Exception as exc:
+            yield (
+                f"event: error\ndata: {json.dumps({'code': 'feedback_failed', 'message': str(exc)[:500]})}\n\n"
+            )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -274,18 +282,26 @@ async def generate_feedback(
     )
 
     async def event_generator():
-        async for event_type, payload in stream_feedback(
-            db,
-            session,
-            body.action,
-            body.model,
-            body.draft,
-            instructions=body.instructions,
-            selection=body.selection,
-            conversation=conversation,
-            source_ids=body.sourceIds,
-        ):
-            yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        try:
+            async for event_type, payload in stream_feedback(
+                db,
+                session,
+                body.action,
+                body.model,
+                body.draft,
+                instructions=body.instructions,
+                selection=body.selection,
+                conversation=conversation,
+                source_ids=body.sourceIds,
+            ):
+                if event_type == "heartbeat":
+                    yield ": ping\n\n"
+                    continue
+                yield f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        except Exception as exc:
+            yield (
+                f"event: error\ndata: {json.dumps({'code': 'feedback_failed', 'message': str(exc)[:500]})}\n\n"
+            )
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

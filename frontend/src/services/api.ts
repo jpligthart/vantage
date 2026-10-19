@@ -279,13 +279,15 @@ async function readSseStream(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let finished = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
         buffer += decoder.decode();
         if (buffer.trim()) {
-          consumeSseEvents(`${buffer}\n\n`, onEvent);
+          const step = consumeSseEvents(`${buffer}\n\n`, onEvent);
+          finished = step.finished;
         }
         break;
       }
@@ -293,12 +295,18 @@ async function readSseStream(
       const step = consumeSseEvents(buffer, onEvent);
       buffer = step.rest;
       if (step.finished) {
+        finished = true;
         await reader.cancel().catch(() => undefined);
         break;
       }
     }
   } finally {
     reader.releaseLock();
+  }
+  if (!finished) {
+    throw new Error(
+      "Verbinding verbroken tijdens genereren. Probeer het opnieuw; bij herhaling check de proxy-timeout of Ollama.",
+    );
   }
 }
 
