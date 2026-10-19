@@ -82,6 +82,7 @@ class CitedChunk:
         self.section_title = chunk.section_title
         self.anchor_id = chunk.anchor_id
         self.prompt_index = chunk.prompt_index
+        self.bbox_json = chunk.bbox_json
         self.source_id = source_id
         self.document_name = document_name
 
