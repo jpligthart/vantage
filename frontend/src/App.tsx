@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookMarked, ChevronLeft, ChevronRight, FileEdit, MessageSquare, Plus } from "lucide-react";
+import {
+  BookMarked,
+  ChevronLeft,
+  ChevronRight,
+  FileEdit,
+  FileText,
+  FolderOpen,
+  MessageSquare,
+  Plus,
+} from "lucide-react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
@@ -843,7 +852,10 @@ export default function App() {
             {sessionSidebarOpen ? (
               <>
                 <div className="flex items-center justify-between gap-1 px-3 py-2.5 border-b border-slate-800/70">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sessies</span>
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    <FolderOpen className="w-3.5 h-3.5 text-amber-500/80" aria-hidden />
+                    Sessies
+                  </span>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -883,6 +895,9 @@ export default function App() {
               </>
             ) : (
               <div className="flex flex-col items-center gap-1.5 py-2.5 px-1 border-b border-slate-800/70">
+                <span title="Sessies" className="p-1 text-amber-500/80" aria-hidden>
+                  <FolderOpen className="w-4 h-4" />
+                </span>
                 <button
                   type="button"
                   title="Sessies vastzetten"
@@ -911,7 +926,10 @@ export default function App() {
               aria-label="Sessies"
             >
               <div className="flex items-center justify-between gap-1 px-3 py-2.5 border-b border-slate-800/70 shrink-0">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sessies</span>
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <FolderOpen className="w-3.5 h-3.5 text-amber-500/80" aria-hidden />
+                  Sessies
+                </span>
                 <button
                   type="button"
                   className="text-xs px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
@@ -942,7 +960,10 @@ export default function App() {
         </div>
         <div className="flex flex-1 min-h-0 min-w-0">
           {!docPanelOpen && (
-            <aside className="w-10 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col items-center py-2.5">
+            <aside className="w-10 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col items-center gap-1.5 py-2.5">
+              <span title="Bronnen" className="p-1 text-amber-500/80" aria-hidden>
+                <FileText className="w-4 h-4" />
+              </span>
               <button
                 type="button"
                 title="Document vastzetten"
@@ -991,7 +1012,11 @@ export default function App() {
                     onCollapse={toggleDocPanel}
                   />
                 ) : (
-                  <div className="flex items-center justify-end px-3 h-10 border-b border-slate-800 bg-slate-900/90 shrink-0">
+                  <div className="flex items-center justify-between px-3 h-10 border-b border-slate-800 bg-slate-900/90 shrink-0">
+                    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      <FileText className="w-3.5 h-3.5 text-amber-500/80" aria-hidden />
+                      Bronnen
+                    </span>
                     <button
                       type="button"
                       title="Document inklappen"

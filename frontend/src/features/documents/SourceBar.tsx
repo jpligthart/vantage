@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, ChevronLeft, FileText, FolderOpen, Pin, Plus, X } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronLeft, FileText, Pin, Plus, X } from "lucide-react";
 import { ImportActions } from "../import/ImportActions";
 import type { SourceDto } from "../../types/domain";
 
@@ -68,7 +68,7 @@ export function SourceBar({
       {/* Row 1: Session header */}
       <div className="flex items-center justify-between gap-2 px-3 h-10">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <FolderOpen className="w-4 h-4 text-amber-500/80 shrink-0" aria-hidden />
+          <FileText className="w-4 h-4 text-amber-500/80 shrink-0" aria-hidden />
           <input
             className="w-full bg-transparent hover:bg-slate-800/60 focus:bg-slate-950 border border-transparent focus:border-slate-700 rounded px-1.5 py-0.5 text-sm font-semibold text-slate-100 outline-none transition-colors truncate"
             aria-label="Sessienaam"
