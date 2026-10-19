@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "development"
+    app_version: str = "0.1.0"
+    git_sha: str = ""
     log_level: str = "INFO"
     data_dir: Path = Path("./data")
     database_url: str = "sqlite:///./data/vantage.db"

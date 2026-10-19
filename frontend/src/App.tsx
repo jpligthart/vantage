@@ -36,6 +36,7 @@ import {
   updateSource,
   uploadSource,
 } from "./services/api";
+import { APP_VERSION, versionLabel, versionTitle } from "./lib/version";
 import type { CitationDto, MessageDto, SessionDetail, SessionDto, SourceDto } from "./types/domain";
 
 const MODEL_KEY = "review-assistant-model";
@@ -757,6 +758,13 @@ export default function App() {
         <h1 className="flex items-center gap-2 font-semibold text-sm tracking-tight text-slate-100">
           <img src="/logo.svg" alt="" width={22} height={22} className="rounded-[5px]" />
           Vantage
+          <span
+            className="text-[10px] font-normal text-slate-600 tabular-nums select-none"
+            title={versionTitle()}
+            aria-label={`Versie ${APP_VERSION}`}
+          >
+            {versionLabel()}
+          </span>
         </h1>
         <div className="flex items-center gap-3">
           <button

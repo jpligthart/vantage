@@ -1,10 +1,14 @@
 FROM python:3.12-slim-bookworm AS base
 
+ARG APP_VERSION=0.1.0
+ARG GIT_SHA=
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     HF_HOME=/app/data/model-cache/huggingface \
-    TRANSFORMERS_CACHE=/app/data/model-cache/huggingface
+    TRANSFORMERS_CACHE=/app/data/model-cache/huggingface \
+    APP_VERSION=$APP_VERSION \
+    GIT_SHA=$GIT_SHA
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \

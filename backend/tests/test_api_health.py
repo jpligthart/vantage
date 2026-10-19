@@ -19,4 +19,7 @@ def test_health(tmp_path, monkeypatch):
     with TestClient(app) as client:
         res = client.get("/api/health")
     assert res.status_code == 200
-    assert res.json()["status"] in ("ok", "degraded")
+    body = res.json()
+    assert body["status"] in ("ok", "degraded")
+    assert isinstance(body["version"], str) and body["version"]
+    assert "gitSha" in body

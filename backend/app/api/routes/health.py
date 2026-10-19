@@ -16,7 +16,12 @@ def health(db: Session = Depends(get_db)) -> dict:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     db.execute(text("SELECT 1"))
     writable = os_accessible(settings.data_dir)
-    return {"status": "ok" if writable else "degraded", "dataDirWritable": writable}
+    return {
+        "status": "ok" if writable else "degraded",
+        "dataDirWritable": writable,
+        "version": settings.app_version,
+        "gitSha": settings.git_sha or None,
+    }
 
 
 def os_accessible(path: Path) -> bool:
