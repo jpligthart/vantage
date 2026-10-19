@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  BookMarked,
-  ChevronLeft,
-  ChevronRight,
-  FileEdit,
-  MessageSquare,
-  PanelLeft,
-  PanelLeftClose,
-  Plus,
-} from "lucide-react";
+import { BookMarked, ChevronLeft, ChevronRight, FileEdit, MessageSquare, Plus } from "lucide-react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
@@ -949,217 +940,219 @@ export default function App() {
             </div>
           )}
         </div>
-        {(() => {
-          const rightPanel = (
-            <section className="min-h-0 flex flex-col h-full">
-              <div className="box-content flex items-end gap-1 px-3 h-10 border-b border-slate-800 bg-slate-900 shrink-0">
-                <button
-                  type="button"
-                  onClick={toggleDocPanel}
-                  title={docPanelOpen ? "Document verbergen" : "Document tonen"}
-                  aria-label={docPanelOpen ? "Document verbergen" : "Document tonen"}
-                  className="mb-1 p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-                >
-                  {docPanelOpen ? (
-                    <PanelLeftClose className="w-4 h-4" aria-hidden />
-                  ) : (
-                    <PanelLeft className="w-4 h-4" aria-hidden />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRightTab("chat")}
-                  title="Analyseer het studentenwerk in gespreksvorm (Verkennen, Onderzoeken of Sparren)"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
-                    rightTab === "chat"
-                      ? "border-amber-500 text-amber-200 bg-slate-950/50"
-                      : "border-transparent text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" aria-hidden />
-                  Chat
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRightTab("feedback")}
-                  title="Stel conceptfeedback op, werk eigen steekwoorden uit of herschrijf je concepttekst"
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
-                    rightTab === "feedback"
-                      ? "border-amber-500 text-amber-200 bg-slate-950/50"
-                      : "border-transparent text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  <FileEdit className="w-3.5 h-3.5" aria-hidden />
-                  Feedback opstellen
-                  {feedbackDraft.trim() && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="Gevuld" />
-                  )}
-                </button>
-              </div>
-              <div className="flex-1 min-h-0 flex flex-col">
-                <div className={rightTab === "chat" ? "flex-1 min-h-0" : "hidden"}>
-                  <ChatPanel
-                    sessionId={activeSessionId}
-                    conversationId={activeConversationId}
-                    conversationTitle={conversation?.title ?? ""}
-                    model={model}
-                    sourceReady={contextReady}
-                    sources={sources}
-                    pinnedSourceIds={pinnedSourceIds}
-                    memory={memory}
-                    messages={messages}
-                    onMessagesChange={setMessages}
-                    onCitationClick={onCitationClick}
-                    onRenameConversation={handleRenameConversation}
-                    onToggleSource={toggleContextSource}
-                    onMemoryChange={(value) => {
-                      memoryDirty.current = true;
-                      setMemory(value);
-                    }}
-                    onSaveMemory={persistMemory}
-                    onRemember={remember}
-                    onAddToFeedback={addToFeedback}
-                    selection={selection}
-                    onClearSelection={() => setSelection(undefined)}
-                  />
-                </div>
-                <div className={rightTab === "feedback" ? "flex-1 min-h-0" : "hidden"}>
-                  <FeedbackPanel
-                    sessionId={activeSessionId}
-                    conversationId={activeConversationId}
-                    conversationTitle={conversation?.title ?? ""}
-                    model={model}
-                    sources={sources}
-                    draft={feedbackDraft}
-                    onDraftChange={(value) => {
-                      feedbackDirty.current = true;
-                      setFeedbackDraft(value);
-                      if (activeConversationId) {
-                        setDetail((current) =>
-                          current
-                            ? {
-                                ...current,
-                                conversations: current.conversations.map((c) =>
-                                  c.id === activeConversationId ? { ...c, feedbackDraft: value } : c,
-                                ),
-                              }
-                            : current,
-                        );
-                      }
-                    }}
-                    onSaveDraft={persistFeedback}
-                    onCitationClick={onCitationClick}
-                    onRenameConversation={handleRenameConversation}
-                    selection={selection}
-                    onClearSelection={() => setSelection(undefined)}
-                  />
-                </div>
-              </div>
-            </section>
-          );
-
-          if (!docPanelOpen) {
-            return (
-              <div className="flex-1 min-h-0 min-w-0 flex flex-col">
+        <div className="flex flex-1 min-h-0 min-w-0">
+          {!docPanelOpen && (
+            <aside className="w-10 shrink-0 border-r border-slate-800 bg-slate-900/40 flex flex-col items-center py-2.5">
+              <button
+                type="button"
+                title="Document vastzetten"
+                aria-label="Document vastzetten"
+                className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                onClick={toggleDocPanel}
+              >
+                <ChevronRight className="w-4 h-4" aria-hidden />
+              </button>
+            </aside>
+          )}
+          <ResizableColumns
+            storageKey="review-assistant-doc-chat-ratio"
+            defaultTrailingRatio={0.58}
+            leadingMinPx={240}
+            trailingMinPx={300}
+            leadingHidden={!docPanelOpen}
+            leading={
+              <main
+                className="flex flex-1 flex-col min-h-0 min-w-0 h-full"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={onDocumentDrop}
+              >
                 {statusText && (
                   <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">
                     {statusText}
                   </div>
                 )}
-                <div className="flex-1 min-h-0">{rightPanel}</div>
-              </div>
-            );
-          }
-
-          return (
-            <ResizableColumns
-              storageKey="review-assistant-doc-chat-ratio"
-              defaultTrailingRatio={0.58}
-              leadingMinPx={240}
-              trailingMinPx={300}
-              leading={
-                <main
-                  className="flex flex-1 flex-col min-h-0 min-w-0 h-full"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={onDocumentDrop}
-                >
-                  {statusText && (
-                    <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">
-                      {statusText}
-                    </div>
-                  )}
-                  {activeSessionId && (
-                    <SourceBar
-                      sources={sources}
-                      activeSourceId={activeSourceId}
-                      sessionTitle={detail?.title ?? ""}
-                      library={library}
-                      onRenameSession={saveSessionTitle}
-                      onSelect={setActiveSourceId}
-                      onDetach={handleDetach}
-                      onFile={handleAddFile}
-                      onPasteText={handleAddPaste}
-                      onWebUrl={handleAddWeb}
-                      onAttachExisting={addSourceToSession}
-                      onToggleReference={handleToggleReference}
-                      onOpenLibrary={() => {
-                        listSources().then(setLibrary).catch(() => setLibrary([]));
-                      }}
-                    />
-                  )}
-                  {activeSource?.status === "failed" && (
-                    <div className="px-4 py-2 text-sm text-red-400 shrink-0">{activeSource.error}</div>
-                  )}
-                  <div className="flex-1 min-h-0 flex flex-col">
-                    {activeSource && sourceReady ? (
-                      <>
-                        <DocumentChrome source={activeSource} />
-                        {activeSource.type === "pdf" ? (
-                          <PdfViewer
+                {activeSessionId ? (
+                  <SourceBar
+                    sources={sources}
+                    activeSourceId={activeSourceId}
+                    sessionTitle={detail?.title ?? ""}
+                    library={library}
+                    onRenameSession={saveSessionTitle}
+                    onSelect={setActiveSourceId}
+                    onDetach={handleDetach}
+                    onFile={handleAddFile}
+                    onPasteText={handleAddPaste}
+                    onWebUrl={handleAddWeb}
+                    onAttachExisting={addSourceToSession}
+                    onToggleReference={handleToggleReference}
+                    onOpenLibrary={() => {
+                      listSources().then(setLibrary).catch(() => setLibrary([]));
+                    }}
+                    onCollapse={toggleDocPanel}
+                  />
+                ) : (
+                  <div className="flex items-center justify-end px-3 h-10 border-b border-slate-800 bg-slate-900/90 shrink-0">
+                    <button
+                      type="button"
+                      title="Document inklappen"
+                      aria-label="Document inklappen"
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                      onClick={toggleDocPanel}
+                    >
+                      <ChevronLeft className="w-4 h-4" aria-hidden />
+                    </button>
+                  </div>
+                )}
+                {activeSource?.status === "failed" && (
+                  <div className="px-4 py-2 text-sm text-red-400 shrink-0">{activeSource.error}</div>
+                )}
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {activeSource && sourceReady ? (
+                    <>
+                      <DocumentChrome source={activeSource} />
+                      {activeSource.type === "pdf" ? (
+                        <PdfViewer
+                          sourceId={activeSource.id}
+                          highlight={highlight?.sourceId === activeSource.id ? highlight : null}
+                          onTextSelect={(text) => setSelection({ text })}
+                        />
+                      ) : (
+                        <div className="flex-1 min-h-0 flex flex-col">
+                          <DocxViewer
                             sourceId={activeSource.id}
                             highlight={highlight?.sourceId === activeSource.id ? highlight : null}
-                            onTextSelect={(text) => setSelection({ text })}
                           />
-                        ) : (
-                          <div className="flex-1 min-h-0 flex flex-col">
-                            <DocxViewer
-                              sourceId={activeSource.id}
-                              highlight={highlight?.sourceId === activeSource.id ? highlight : null}
-                            />
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-slate-500 text-sm px-6 text-center">
-                        {activeSessionId
-                          ? activeSource
-                            ? "Wacht op document…"
-                            : "Voeg een document toe aan deze sessie"
-                          : "Start een nieuwe sessie links, of sleep een bestand hierheen"}
-                      </div>
-                    )}
-                  </div>
-                  {sourceReady && selection?.text && (
-                    <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs shrink-0">
-                      <span className="text-slate-400 truncate flex-1">
-                        Selectie: {selection.text.slice(0, 80)}
-                        {selection.text.length > 80 ? "…" : ""}
-                      </span>
-                      <button
-                        type="button"
-                        className="text-amber-400 underline shrink-0"
-                        onClick={() => setSelection(undefined)}
-                      >
-                        wissen
-                      </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-500 text-sm px-6 text-center">
+                      {activeSessionId
+                        ? activeSource
+                          ? "Wacht op document…"
+                          : "Voeg een document toe aan deze sessie"
+                        : "Start een nieuwe sessie links, of sleep een bestand hierheen"}
                     </div>
                   )}
-                </main>
-              }
-              trailing={rightPanel}
-            />
-          );
-        })()}
+                </div>
+                {sourceReady && selection?.text && (
+                  <div className="border-t border-slate-800 px-3 py-2 flex items-center gap-2 text-xs shrink-0">
+                    <span className="text-slate-400 truncate flex-1">
+                      Selectie: {selection.text.slice(0, 80)}
+                      {selection.text.length > 80 ? "…" : ""}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-amber-400 underline shrink-0"
+                      onClick={() => setSelection(undefined)}
+                    >
+                      wissen
+                    </button>
+                  </div>
+                )}
+              </main>
+            }
+            trailing={
+              <section className="min-h-0 flex flex-col h-full">
+                {!docPanelOpen && statusText && (
+                  <div className="px-4 py-2 text-sm bg-slate-800 text-amber-200 shrink-0 whitespace-pre-wrap">
+                    {statusText}
+                  </div>
+                )}
+                <div className="box-content flex items-end gap-1 px-3 h-10 border-b border-slate-800 bg-slate-900 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRightTab("chat")}
+                    title="Analyseer het studentenwerk in gespreksvorm (Verkennen, Onderzoeken of Sparren)"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
+                      rightTab === "chat"
+                        ? "border-amber-500 text-amber-200 bg-slate-950/50"
+                        : "border-transparent text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" aria-hidden />
+                    Chat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRightTab("feedback")}
+                    title="Stel conceptfeedback op, werk eigen steekwoorden uit of herschrijf je concepttekst"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
+                      rightTab === "feedback"
+                        ? "border-amber-500 text-amber-200 bg-slate-950/50"
+                        : "border-transparent text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <FileEdit className="w-3.5 h-3.5" aria-hidden />
+                    Feedback opstellen
+                    {feedbackDraft.trim() && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="Gevuld" />
+                    )}
+                  </button>
+                </div>
+                <div className="flex-1 min-h-0 flex flex-col">
+                  <div className={rightTab === "chat" ? "flex-1 min-h-0" : "hidden"}>
+                    <ChatPanel
+                      sessionId={activeSessionId}
+                      conversationId={activeConversationId}
+                      conversationTitle={conversation?.title ?? ""}
+                      model={model}
+                      sourceReady={contextReady}
+                      sources={sources}
+                      pinnedSourceIds={pinnedSourceIds}
+                      memory={memory}
+                      messages={messages}
+                      onMessagesChange={setMessages}
+                      onCitationClick={onCitationClick}
+                      onRenameConversation={handleRenameConversation}
+                      onToggleSource={toggleContextSource}
+                      onMemoryChange={(value) => {
+                        memoryDirty.current = true;
+                        setMemory(value);
+                      }}
+                      onSaveMemory={persistMemory}
+                      onRemember={remember}
+                      onAddToFeedback={addToFeedback}
+                      selection={selection}
+                      onClearSelection={() => setSelection(undefined)}
+                    />
+                  </div>
+                  <div className={rightTab === "feedback" ? "flex-1 min-h-0" : "hidden"}>
+                    <FeedbackPanel
+                      sessionId={activeSessionId}
+                      conversationId={activeConversationId}
+                      conversationTitle={conversation?.title ?? ""}
+                      model={model}
+                      sources={sources}
+                      draft={feedbackDraft}
+                      onDraftChange={(value) => {
+                        feedbackDirty.current = true;
+                        setFeedbackDraft(value);
+                        if (activeConversationId) {
+                          setDetail((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  conversations: current.conversations.map((c) =>
+                                    c.id === activeConversationId ? { ...c, feedbackDraft: value } : c,
+                                  ),
+                                }
+                              : current,
+                          );
+                        }
+                      }}
+                      onSaveDraft={persistFeedback}
+                      onCitationClick={onCitationClick}
+                      onRenameConversation={handleRenameConversation}
+                      selection={selection}
+                      onClearSelection={() => setSelection(undefined)}
+                    />
+                  </div>
+                </div>
+              </section>
+            }
+          />
+        </div>
       </div>
       {newSessionOpen && (
         <NewSessionDialog

@@ -9,6 +9,8 @@ interface Props {
   trailingMinPx: number;
   leading: React.ReactNode;
   trailing: React.ReactNode;
+  /** When true, only the trailing column is shown (leading + splitter stay mounted but hidden). */
+  leadingHidden?: boolean;
   className?: string;
 }
 
@@ -42,6 +44,7 @@ export function ResizableColumns({
   trailingMinPx,
   leading,
   trailing,
+  leadingHidden = false,
   className,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,7 @@ export function ResizableColumns({
 
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      if (!dragging.current || !containerRef.current) return;
+      if (!dragging.current || !containerRef.current || leadingHidden) return;
       const rect = containerRef.current.getBoundingClientRect();
       const fromRight = rect.right - e.clientX;
       const ratio = fromRight / rect.width;
@@ -81,7 +84,7 @@ export function ResizableColumns({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [leadingMinPx, trailingMinPx, persistRatio]);
+  }, [leadingMinPx, trailingMinPx, persistRatio, leadingHidden]);
 
   function startDrag(e: React.PointerEvent) {
     e.preventDefault();
@@ -103,20 +106,38 @@ export function ResizableColumns({
       ref={containerRef}
       className={cn("grid flex-1 min-h-0 min-w-0", className)}
       style={{
-        gridTemplateColumns: `minmax(${leadingMinPx}px, ${leadFr}fr) 6px minmax(${trailingMinPx}px, ${trailFr}fr)`,
+        gridTemplateColumns: leadingHidden
+          ? "minmax(0, 1fr)"
+          : `minmax(${leadingMinPx}px, ${leadFr}fr) 6px minmax(${trailingMinPx}px, ${trailFr}fr)`,
       }}
     >
-      <div className="min-h-0 min-w-0 flex flex-col overflow-hidden">{leading}</div>
       <div
+        key="leading"
+        className={cn(
+          "min-h-0 min-w-0 flex flex-col overflow-hidden",
+          leadingHidden && "hidden",
+        )}
+        aria-hidden={leadingHidden}
+      >
+        {leading}
+      </div>
+      <div
+        key="splitter"
         role="separator"
         aria-orientation="vertical"
         aria-valuenow={Math.round(trailingRatio * 100)}
+        aria-hidden={leadingHidden}
         title="Sleep om te vergroten/verkleinen — dubbelklik voor standaard"
-        onPointerDown={startDrag}
-        onDoubleClick={resetSplit}
-        className="cursor-col-resize bg-slate-800 hover:bg-amber-600/70 active:bg-amber-500/80 transition-colors touch-none"
+        onPointerDown={leadingHidden ? undefined : startDrag}
+        onDoubleClick={leadingHidden ? undefined : resetSplit}
+        className={cn(
+          "cursor-col-resize bg-slate-800 hover:bg-amber-600/70 active:bg-amber-500/80 transition-colors touch-none",
+          leadingHidden && "hidden",
+        )}
       />
-      <div className="min-h-0 min-w-0 flex flex-col overflow-hidden">{trailing}</div>
+      <div key="trailing" className="min-h-0 min-w-0 flex flex-col overflow-hidden">
+        {trailing}
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, FileText, FolderOpen, Pin, Plus, X } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronLeft, FileText, FolderOpen, Pin, Plus, X } from "lucide-react";
 import { ImportActions } from "../import/ImportActions";
 import type { SourceDto } from "../../types/domain";
 
@@ -17,6 +17,7 @@ interface Props {
   onAttachExisting: (sourceId: string) => void;
   onToggleReference: (sourceId: string, isReference: boolean) => void;
   onOpenLibrary: () => void;
+  onCollapse?: () => void;
 }
 
 const COLLAPSED_KEY = "review-assistant-sourcebar-collapsed";
@@ -35,6 +36,7 @@ export function SourceBar({
   onAttachExisting,
   onToggleReference,
   onOpenLibrary,
+  onCollapse,
 }: Props) {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -184,6 +186,17 @@ export function SourceBar({
             </div>
           )}
         </div>
+        {onCollapse && (
+          <button
+            type="button"
+            title="Document inklappen"
+            aria-label="Document inklappen"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors shrink-0"
+            onClick={onCollapse}
+          >
+            <ChevronLeft className="w-4 h-4" aria-hidden />
+          </button>
+        )}
       </div>
 
       {/* Row 2: Source tabs */}
