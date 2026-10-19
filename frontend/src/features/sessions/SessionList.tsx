@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Folder, MessageSquare, Plus, Trash2 } from "lucide-react";
 import type { SessionDto } from "../../types/domain";
 
@@ -36,6 +37,16 @@ export function SessionList({
   onCancelDeleteConversation,
   onConfirmDeleteConversation,
 }: Props) {
+  const activeItemRef = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const frame = requestAnimationFrame(() => {
+      activeItemRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeSessionId]);
+
   if (sessions.length === 0) {
     return <p className="px-3 py-4 text-xs text-slate-500 text-center">Nog geen sessies</p>;
   }
@@ -49,6 +60,7 @@ export function SessionList({
         return (
           <li
             key={s.id}
+            ref={open ? activeItemRef : undefined}
             className={`rounded-md transition-colors ${open ? "bg-slate-800/70" : "hover:bg-slate-900/60"}`}
           >
             {confirming ? (

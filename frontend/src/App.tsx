@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BookMarked, FileEdit, MessageSquare } from "lucide-react";
+import { BookMarked, ChevronLeft, ChevronRight, FileEdit, MessageSquare, Plus } from "lucide-react";
 import { ResizableColumns } from "./components/ResizableColumns";
 import { ChatPanel } from "./features/chat/ChatPanel";
 import { DocumentChrome } from "./features/documents/DocumentChrome";
@@ -39,6 +39,17 @@ import {
 import type { CitationDto, MessageDto, SessionDetail, SessionDto, SourceDto } from "./types/domain";
 
 const MODEL_KEY = "review-assistant-model";
+const SESSION_SIDEBAR_KEY = "review-assistant-session-sidebar";
+
+function readSessionSidebarOpen(): boolean {
+  try {
+    const raw = localStorage.getItem(SESSION_SIDEBAR_KEY);
+    if (raw == null) return true;
+    return raw !== "0";
+  } catch {
+    return true;
+  }
+}
 
 export default function App() {
   const [sessions, setSessions] = useState<SessionDto[]>([]);
@@ -49,6 +60,8 @@ export default function App() {
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string | null>(() => localStorage.getItem(MODEL_KEY));
+  const [sessionSidebarOpen, setSessionSidebarOpen] = useState(readSessionSidebarOpen);
+  const [sessionFlyoutOpen, setSessionFlyoutOpen] = useState(false);
   const [highlight, setHighlight] = useState<CitationDto | null>(null);
   const [selection, setSelection] = useState<{ text: string; chunkId?: string } | undefined>();
   const [statusText, setStatusText] = useState<string | null>(null);
@@ -67,6 +80,8 @@ export default function App() {
   const loadSeq = useRef(0);
   const preferredConversationId = useRef<string | null>(null);
   const memoryQueue = useRef(Promise.resolve());
+  const flyoutOpenTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flyoutCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshSessions = useCallback(async () => {
     setSessions(await listSessions());
@@ -321,6 +336,68 @@ export default function App() {
     if (activeSessionId) handleAddFile(file);
     else handleNewFile(file);
   }
+
+  function clearFlyoutTimers() {
+    if (flyoutOpenTimer.current) {
+      clearTimeout(flyoutOpenTimer.current);
+      flyoutOpenTimer.current = null;
+    }
+    if (flyoutCloseTimer.current) {
+      clearTimeout(flyoutCloseTimer.current);
+      flyoutCloseTimer.current = null;
+    }
+  }
+
+  function toggleSessionSidebar() {
+    clearFlyoutTimers();
+    setSessionFlyoutOpen(false);
+    setSessionSidebarOpen((open) => {
+      const next = !open;
+      try {
+        localStorage.setItem(SESSION_SIDEBAR_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
+  function onSessionRailEnter() {
+    if (sessionSidebarOpen) return;
+    if (flyoutCloseTimer.current) {
+      clearTimeout(flyoutCloseTimer.current);
+      flyoutCloseTimer.current = null;
+    }
+    if (sessionFlyoutOpen) return;
+    if (flyoutOpenTimer.current) return;
+    flyoutOpenTimer.current = setTimeout(() => {
+      flyoutOpenTimer.current = null;
+      setSessionFlyoutOpen(true);
+    }, 160);
+  }
+
+  function onSessionRailLeave() {
+    if (sessionSidebarOpen) return;
+    if (flyoutOpenTimer.current) {
+      clearTimeout(flyoutOpenTimer.current);
+      flyoutOpenTimer.current = null;
+    }
+    if (confirmDeleteId || confirmDeleteConversationId) return;
+    if (flyoutCloseTimer.current) clearTimeout(flyoutCloseTimer.current);
+    flyoutCloseTimer.current = setTimeout(() => {
+      flyoutCloseTimer.current = null;
+      setSessionFlyoutOpen(false);
+    }, 200);
+  }
+
+  function openNewSessionDialog() {
+    setNewSessionOpen(true);
+    listSources().then(setLibrary).catch(() => setLibrary([]));
+  }
+
+  useEffect(() => {
+    return () => clearFlyoutTimers();
+  }, []);
 
   function onModelChange(value: string) {
     setModel(value);
@@ -715,38 +792,116 @@ export default function App() {
         </div>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside className="w-60 border-r border-slate-800 bg-slate-900/40 flex flex-col shrink-0">
-          <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-800/70">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sessies</span>
-            <button
-              type="button"
-              className="text-xs px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
-              onClick={() => {
-                setNewSessionOpen(true);
-                listSources().then(setLibrary).catch(() => setLibrary([]));
-              }}
+        <div
+          className={`relative shrink-0 ${sessionSidebarOpen ? "" : "z-30"}`}
+          onMouseEnter={onSessionRailEnter}
+          onMouseLeave={onSessionRailLeave}
+        >
+          <aside
+            className={`border-r border-slate-800 bg-slate-900/40 flex flex-col h-full overflow-hidden transition-[width] duration-200 ease-out ${
+              sessionSidebarOpen ? "w-60" : "w-10"
+            }`}
+          >
+            {sessionSidebarOpen ? (
+              <>
+                <div className="flex items-center justify-between gap-1 px-3 py-2.5 border-b border-slate-800/70">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sessies</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+                      onClick={openNewSessionDialog}
+                    >
+                      + Nieuw
+                    </button>
+                    <button
+                      type="button"
+                      title="Sessies inklappen"
+                      aria-label="Sessies inklappen"
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                      onClick={toggleSessionSidebar}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <SessionList
+                  sessions={sessions}
+                  activeSessionId={activeSessionId}
+                  activeConversationId={activeConversationId}
+                  confirmDeleteId={confirmDeleteId}
+                  deletingId={deletingId}
+                  confirmDeleteConversationId={confirmDeleteConversationId}
+                  onOpen={openSession}
+                  onOpenConversation={openConversation}
+                  onCreateConversation={handleCreateConversation}
+                  onRequestDelete={(id) => setConfirmDeleteId(id)}
+                  onCancelDelete={() => setConfirmDeleteId(null)}
+                  onConfirmDelete={confirmDeleteSession}
+                  onRequestDeleteConversation={(id) => setConfirmDeleteConversationId(id)}
+                  onCancelDeleteConversation={() => setConfirmDeleteConversationId(null)}
+                  onConfirmDeleteConversation={confirmDeleteConversation}
+                />
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-1.5 py-2.5 px-1 border-b border-slate-800/70">
+                <button
+                  type="button"
+                  title="Sessies vastzetten"
+                  aria-label="Sessies vastzetten"
+                  className="p-1 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                  onClick={toggleSessionSidebar}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  title="Nieuwe sessie"
+                  aria-label="Nieuwe sessie"
+                  className="p-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white transition-colors"
+                  onClick={openNewSessionDialog}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </aside>
+          {!sessionSidebarOpen && sessionFlyoutOpen && (
+            <div
+              className="absolute left-full top-0 bottom-0 w-60 flex flex-col border-r border-slate-800 bg-slate-900 shadow-xl shadow-black/40"
+              role="dialog"
+              aria-label="Sessies"
             >
-              + Nieuw
-            </button>
-          </div>
-          <SessionList
-            sessions={sessions}
-            activeSessionId={activeSessionId}
-            activeConversationId={activeConversationId}
-            confirmDeleteId={confirmDeleteId}
-            deletingId={deletingId}
-            confirmDeleteConversationId={confirmDeleteConversationId}
-            onOpen={openSession}
-            onOpenConversation={openConversation}
-            onCreateConversation={handleCreateConversation}
-            onRequestDelete={(id) => setConfirmDeleteId(id)}
-            onCancelDelete={() => setConfirmDeleteId(null)}
-            onConfirmDelete={confirmDeleteSession}
-            onRequestDeleteConversation={(id) => setConfirmDeleteConversationId(id)}
-            onCancelDeleteConversation={() => setConfirmDeleteConversationId(null)}
-            onConfirmDeleteConversation={confirmDeleteConversation}
-          />
-        </aside>
+              <div className="flex items-center justify-between gap-1 px-3 py-2.5 border-b border-slate-800/70 shrink-0">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Sessies</span>
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded-md bg-amber-600 hover:bg-amber-500 text-white font-medium transition-colors"
+                  onClick={openNewSessionDialog}
+                >
+                  + Nieuw
+                </button>
+              </div>
+              <SessionList
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                activeConversationId={activeConversationId}
+                confirmDeleteId={confirmDeleteId}
+                deletingId={deletingId}
+                confirmDeleteConversationId={confirmDeleteConversationId}
+                onOpen={openSession}
+                onOpenConversation={openConversation}
+                onCreateConversation={handleCreateConversation}
+                onRequestDelete={(id) => setConfirmDeleteId(id)}
+                onCancelDelete={() => setConfirmDeleteId(null)}
+                onConfirmDelete={confirmDeleteSession}
+                onRequestDeleteConversation={(id) => setConfirmDeleteConversationId(id)}
+                onCancelDeleteConversation={() => setConfirmDeleteConversationId(null)}
+                onConfirmDeleteConversation={confirmDeleteConversation}
+              />
+            </div>
+          )}
+        </div>
         <ResizableColumns
           storageKey="review-assistant-doc-chat-ratio"
           defaultTrailingRatio={0.58}
