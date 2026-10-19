@@ -65,14 +65,18 @@ export function SourceBar({
 
   return (
     <div className="border-b border-slate-800 bg-slate-900/90 shrink-0">
-      {/* Row 1: Session header */}
+      {/* Row 1: Panel chrome + session title */}
       <div className="flex items-center justify-between gap-2 px-3 h-10">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <FileText className="w-4 h-4 text-amber-500/80 shrink-0" aria-hidden />
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider shrink-0">
+            <FileText className="w-4 h-4 text-amber-500/80" aria-hidden />
+            Bronnen
+          </span>
           <input
-            className="w-full bg-transparent hover:bg-slate-800/60 focus:bg-slate-950 border border-transparent focus:border-slate-700 rounded px-1.5 py-0.5 text-sm font-semibold text-slate-100 outline-none transition-colors truncate"
+            className="min-w-0 flex-1 bg-transparent hover:bg-slate-800/60 focus:bg-slate-950 border border-transparent focus:border-slate-700 rounded px-1.5 py-0.5 text-sm text-slate-200 outline-none transition-colors truncate"
             aria-label="Sessienaam"
             placeholder="Sessienaam…"
+            title="Sessienaam"
             value={titleDraft}
             onChange={(e) => setTitleDraft(e.target.value)}
             onBlur={(e) => {
@@ -94,10 +98,10 @@ export function SourceBar({
             })
           }
           className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 shrink-0 transition-colors"
-          title={collapsed ? "Bronnen tonen" : "Bronnen inklappen"}
+          title={collapsed ? "Bronlijst tonen" : "Bronlijst inklappen"}
           aria-expanded={!collapsed}
         >
-          {sources.length} {sources.length === 1 ? "bron" : "bronnen"}
+          {sources.length}
           <ChevronDown
             className={`w-3.5 h-3.5 transition-transform ${collapsed ? "-rotate-90" : ""}`}
             aria-hidden
