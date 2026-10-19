@@ -553,7 +553,7 @@ export function FeedbackPanel({
         )}
 
         {!showEditor ? (
-          <div className="flex-1 min-h-0 flex flex-col items-start justify-center gap-3 px-1 py-2">
+          <div className="flex-1 min-h-0 flex flex-col items-start justify-start gap-3 px-1 py-2">
             <div className="space-y-1.5 max-w-lg">
               <p className="text-sm font-medium text-slate-200">{activeAction.emptyTitle}</p>
               <p className="text-xs text-slate-400 leading-relaxed">{activeAction.emptyBody}</p>
