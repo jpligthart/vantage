@@ -1,14 +1,14 @@
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.api.schemas import SourcePaste, SourceUpdate, SourceWebCreate
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.documents.paste import save_pasted_text
-from app.documents.processor import process_source
+from app.documents.processor import densify_preview_html, process_source
 from app.documents.service import (
     delete_source,
     get_source_or_404,
@@ -194,13 +194,14 @@ def get_source_content(source_id: str, db: Session = Depends(get_db)) -> FileRes
 
 
 @router.get("/{source_id}/preview")
-def get_source_preview(source_id: str, db: Session = Depends(get_db)) -> FileResponse:
+def get_source_preview(source_id: str, db: Session = Depends(get_db)) -> HTMLResponse:
     from app.models.entities import Document
 
     source = get_source_or_404(db, source_id)
     doc = db.query(Document).filter(Document.source_id == source.id).first()
     if doc and doc.html_preview_path and Path(doc.html_preview_path).is_file():
-        return FileResponse(doc.html_preview_path, media_type="text/html")
+        raw = Path(doc.html_preview_path).read_text(encoding="utf-8")
+        return HTMLResponse(densify_preview_html(raw))
     raise HTTPException(status_code=404, detail="Preview not available")
 
 

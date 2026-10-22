@@ -53,21 +53,34 @@ def _page_height(dl_doc: DoclingDocument, page_no: int | None) -> float | None:
     return float(page.size.height) if page.size else None
 
 
-def _build_html_preview(dl_doc: DoclingDocument, anchor_map: dict[str, str]) -> str:
-    body_parts: list[str] = []
-    for chunk_id, text in anchor_map.items():
-        body_parts.append(
-            f'<section id="{html.escape(chunk_id)}" class="chunk">'
-            f"<p>{html.escape(text)}</p></section>"
-        )
-    return (
-        "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
-        "<style>body{font-family:system-ui;max-width:800px;margin:2rem auto;line-height:1.5}"
-        ".chunk{margin-bottom:1.5rem;padding:.5rem;border-left:3px solid #ccc}</style>"
-        "</head><body>"
-        + "".join(body_parts)
-        + "</body></html>"
+# Dense continuous preview: anchors stay addressable for citations, without chunk "cards".
+_PREVIEW_CSS = (
+    "body{font-family:system-ui,sans-serif;max-width:42rem;margin:1rem auto;padding:0 1rem;"
+    "line-height:1.45;color:#111;white-space:pre-wrap}"
+    ".chunk{display:block;margin:0 0 .35rem;padding:0;border:none}"
+    ".chunk p{margin:0}"
+)
+
+
+def densify_preview_html(raw: str) -> str:
+    """Tighten spacing for stored previews (old section cards + new span flow)."""
+    override = (
+        "body{margin:1rem auto!important;padding:0 1rem!important;line-height:1.45!important;"
+        "white-space:pre-wrap}"
+        "section.chunk,.chunk{display:block!important;margin:0 0 .35rem!important;"
+        "padding:0!important;border:none!important;border-left:none!important}"
+        ".chunk p,section.chunk p{margin:0!important}"
     )
+    tag = f"<style id='vantage-dense'>{override}</style>"
+    if "id='vantage-dense'" in raw or 'id="vantage-dense"' in raw:
+        return raw
+    if "</head>" in raw:
+        return raw.replace("</head>", tag + "</head>", 1)
+    return tag + raw
+
+
+def _build_html_preview(_dl_doc: DoclingDocument, anchor_map: dict[str, str]) -> str:
+    return _build_html_preview_from_anchors(anchor_map)
 
 
 def _process_plain_text_file(
@@ -126,13 +139,12 @@ def _build_html_preview_from_anchors(anchor_map: dict[str, str]) -> str:
     body_parts: list[str] = []
     for anchor_id, text in anchor_map.items():
         body_parts.append(
-            f'<section id="{html.escape(anchor_id)}" class="chunk">'
-            f"<p>{html.escape(text)}</p></section>"
+            f'<span id="{html.escape(anchor_id)}" class="chunk">'
+            f"{html.escape(text)}</span>"
         )
     return (
         "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
-        "<style>body{font-family:system-ui;max-width:800px;margin:2rem auto;line-height:1.5;white-space:pre-wrap}"
-        ".chunk{margin-bottom:1.5rem;padding:.5rem;border-left:3px solid #ccc}</style>"
+        f"<style>{_PREVIEW_CSS}</style>"
         "</head><body>"
         + "".join(body_parts)
         + "</body></html>"
