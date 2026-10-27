@@ -3,7 +3,7 @@ name: vantage-dev
 services:
   backend:
     container_name: vantage-backend-dev
-    image: zotregistry.jelph.nl/fontysict/vantage-backend:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-}vantage-backend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -49,7 +49,7 @@ services:
 
   frontend:
     container_name: vantage-frontend-dev
-    image: zotregistry.jelph.nl/fontysict/vantage-frontend:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-}vantage-frontend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile

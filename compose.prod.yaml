@@ -3,7 +3,7 @@ name: vantage
 services:
   backend:
     container_name: vantage-backend
-    image: zotregistry.jelph.nl/fontysict/vantage-backend:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-}vantage-backend:${IMAGE_TAG:-latest}
     pull_policy: always
     expose:
       - "8000"
@@ -31,7 +31,7 @@ services:
 
   frontend:
     container_name: vantage-frontend
-    image: zotregistry.jelph.nl/fontysict/vantage-frontend:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-}vantage-frontend:${IMAGE_TAG:-latest}
     pull_policy: always
     ports:
       - "${HOST_WEB_PORT:-7847}:80"
