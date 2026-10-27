@@ -129,9 +129,9 @@ export function ChatMessage({
                   type="button"
                   onClick={() => onAddToFeedback(message.content)}
                   className="text-xs text-slate-500 hover:text-sky-300"
-                  title="Voeg dit antwoord toe aan het feedbackconcept"
+                  title="Voeg dit antwoord toe aan de conceptfeedback"
                 >
-                  Naar feedback
+                  Naar conceptfeedback
                 </button>
               )}
               {isPersisted && onRetry && (

@@ -765,7 +765,7 @@ export default function App() {
     feedbackDirty.current = false;
     await persistFeedback(next);
     setRightTab("feedback");
-    setStatusText("Toegevoegd aan feedbackconcept.");
+    setStatusText("Toegevoegd aan conceptfeedback.");
   }
 
   function onCitationClick(citation: CitationDto) {
@@ -797,6 +797,9 @@ export default function App() {
         <h1 className="flex items-center gap-2 font-semibold text-sm tracking-tight text-slate-100">
           <img src="/logo.svg" alt="" width={22} height={22} className="rounded-[5px]" />
           Vantage
+          <span className="hidden sm:inline font-normal text-slate-500 text-xs tracking-normal">
+            Documentreview &amp; conceptfeedback
+          </span>
           <span
             className="text-[10px] font-normal text-slate-500 tabular-nums select-none"
             title={versionTitle()}
@@ -1105,7 +1108,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setRightTab("feedback")}
-                    title="Stel conceptfeedback op, werk eigen steekwoorden uit of herschrijf je concepttekst"
+                    title="Werk eigen steekwoorden of concepttekst uit tot conceptfeedback; optioneel een eerste aanzet vanuit de bronnen"
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-t-md border-b-2 transition-colors ${
                       rightTab === "feedback"
                         ? "border-amber-500 text-amber-200 bg-slate-950/50"
@@ -1113,7 +1116,7 @@ export default function App() {
                     }`}
                   >
                     <FileEdit className="w-3.5 h-3.5" aria-hidden />
-                    Feedback opstellen
+                    Conceptfeedback
                     {feedbackDraft.trim() && (
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400" aria-label="Gevuld" />
                     )}

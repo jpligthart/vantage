@@ -39,7 +39,8 @@ Richtlijnen:
 
 FEEDBACK_ACTION_PROMPTS = {
     "compose": (
-        "Stel gestructureerde conceptfeedback op over het studentenwerk. "
+        "Schrijf een eerste aanzet tot gestructureerde conceptfeedback over het studentenwerk "
+        "(startpunt voor de docent, geen eindproduct). "
         "Benoem concrete sterke punten, inhoudelijke aandachtspunten of blinde vlekken, en vervolgvragen of verbetersuggesties, onderbouwd met chunk-markers."
     ),
     "expand": (

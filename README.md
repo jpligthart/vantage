@@ -1,6 +1,6 @@
 # Vantage
 
-Local document & portfolio analysis assistant for teachers and policy reviewers (phase 1 MVP).
+Local **document review** and **concept-feedback** assistant for teachers and policy reviewers (phase 1 MVP). Chat to analyse student work; draft your own notes, then let the AI help formulate concept feedback — you stay the editor.
 
 ## Prerequisites
 

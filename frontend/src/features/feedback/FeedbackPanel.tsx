@@ -34,33 +34,17 @@ const ACTIONS: {
   emptyCta: string;
 }[] = [
   {
-    id: "compose",
-    label: "Opstellen",
-    busyLabel: "Opstellen…",
-    summary: "Nieuw concept vanuit de bronnen.",
-    description: "Genereer nieuwe conceptfeedback op basis van de aangevinkte bronnen",
-    icon: Sparkles,
-    needsDraft: false,
-    emptyTitle: "Nog geen feedback",
-    emptyBody:
-      "Klik rechtsboven op Opstellen. De AI maakt een nieuw concept op basis van de aangevinkte bronnen. Je kunt daarna zelf bijwerken of een andere actie kiezen.",
-    emptyExamples: [
-      "Optioneel: typ alvast aantekeningen die meegenomen mogen worden",
-      "Gebruik de extra instructie hierboven voor iets eenmaligs, bijv. 'alleen security'",
-    ],
-    emptyCta: "Of typ zelf aantekeningen…",
-  },
-  {
     id: "expand",
     label: "Aanvullen",
     busyLabel: "Aanvullen…",
     summary: "Werkt je eigen steekwoorden uit met voorbeelden en bronverwijzingen.",
-    description: "Werk je eigen steekwoorden of korte punten in het tekstvak uit met voorbeelden en bronverwijzingen",
+    description:
+      "Werk je eigen steekwoorden of korte punten in het tekstvak uit met voorbeelden en bronverwijzingen",
     icon: Wand2,
     needsDraft: true,
-    emptyTitle: "Eerst steekwoorden typen",
+    emptyTitle: "Jouw steekwoorden eerst",
     emptyBody:
-      "Typ korte bullets of steekwoorden. Daarna werkt Aanvullen ze uit met voorbeelden en bronverwijzingen uit de documenten.",
+      "Review desnoods eerst in Chat. Typ hier je eigen bullets of steekwoorden; Aanvullen werkt ze uit tot conceptfeedback met voorbeelden uit de documenten. Jij blijft eindredacteur.",
     emptyExamples: [
       "Probleemstelling is nog te breed geformuleerd",
       "Architectuurkeuze goed onderbouwd, maar security ontbreekt",
@@ -85,6 +69,24 @@ const ACTIONS: {
       "Volgende stap: licht toe hoe je…",
     ],
     emptyCta: "Plak of typ je concept…",
+  },
+  {
+    id: "compose",
+    label: "Eerste aanzet",
+    busyLabel: "Eerste aanzet…",
+    summary: "Optioneel: een eerste concept vanuit de bronnen — jij redigeert daarna.",
+    description:
+      "Maak een optionele eerste aanzet tot conceptfeedback op basis van de aangevinkte bronnen",
+    icon: Sparkles,
+    needsDraft: false,
+    emptyTitle: "Optionele eerste aanzet",
+    emptyBody:
+      "Liever zelf sturen? Kies Aanvullen of Herschrijven. Eerste aanzet schrijft een concept vanuit de bronnen; behandel het als startpunt, niet als eindproduct.",
+    emptyExamples: [
+      "Optioneel: typ alvast aantekeningen die meegenomen mogen worden",
+      "Gebruik de extra instructie hierboven voor iets eenmaligs, bijv. 'alleen security'",
+    ],
+    emptyCta: "Of typ zelf aantekeningen…",
   },
 ];
 
@@ -129,7 +131,7 @@ export function FeedbackPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<"edit" | "preview">("edit");
-  const [action, setAction] = useState<FeedbackAction>("compose");
+  const [action, setAction] = useState<FeedbackAction>("expand");
   const [titleDraft, setTitleDraft] = useState(conversationTitle);
   const [sourcesCollapsed, setSourcesCollapsed] = useState(
     () => localStorage.getItem(SOURCES_COLLAPSED_KEY) !== "0",
@@ -259,7 +261,7 @@ export function FeedbackPanel({
       );
       onClearSelection();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Feedback genereren mislukt");
+      setError(e instanceof Error ? e.message : "Conceptfeedback uitwerken mislukt");
       onDraftChange(snapshotBefore);
       setPreviousDraft(null);
       setShowingPrevious(false);
@@ -450,7 +452,7 @@ export function FeedbackPanel({
       <div className="flex-1 flex flex-col min-h-0 p-3 gap-2.5 bg-slate-950/40">
         {!model && (
           <p className="text-sm text-amber-400 shrink-0">
-            Kies een model in de balk bovenin om feedback te genereren.
+            Kies een model in de balk bovenin om conceptfeedback te laten uitwerken.
           </p>
         )}
         {selection?.text && (
@@ -467,7 +469,7 @@ export function FeedbackPanel({
             <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" aria-hidden />
             <span>
               {busyAction === "compose"
-                ? "Bronnen lezen en conceptfeedback opstellen…"
+                ? "Bronnen lezen voor een eerste aanzet…"
                 : busyAction === "expand"
                   ? "Steekwoorden uitwerken met voorbeelden uit de bronnen…"
                   : "Conceptfeedback herschrijven…"}
@@ -596,7 +598,7 @@ export function FeedbackPanel({
                 ? "Typ hier je steekwoorden, één per regel…"
                 : action === "rewrite"
                   ? "Plak of typ hier je conceptfeedback…"
-                  : "Optionele aantekeningen, of laat leeg en klik op Opstellen…"
+                  : "Optionele aantekeningen, of laat leeg en klik op Eerste aanzet…"
             }
             value={draft}
             disabled={!sessionId || Boolean(busyAction)}
@@ -611,7 +613,7 @@ export function FeedbackPanel({
         {citations.length > 0 && (
           <div className="border-t border-slate-800/80 pt-2 shrink-0">
             <div className="text-[11px] text-slate-400 mb-1.5">
-              Bronverwijzingen uit de laatste gegenereerde feedback (klik om te bekijken in het document):
+              Bronverwijzingen uit de laatste conceptfeedback (klik om te bekijken in het document):
             </div>
             <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
               {sortCitations(citations).map((c, i) => (
