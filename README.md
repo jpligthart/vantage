@@ -56,7 +56,7 @@ docker compose -f compose.prod.yaml pull
 docker compose -f compose.prod.yaml up -d
 ```
 
-All persistent data (SQLite database, uploaded documents, Docling output, and HuggingFace model cache) is stored in `./data` relative to the Compose file.
+All persistent data (SQLite database, uploaded documents, Docling output, and HuggingFace model cache) is stored in `./data` relative to the Compose file. The UI is bound to `127.0.0.1` only (see [Security](#security)).
 
 ## Local development (without Docker)
 
@@ -88,7 +88,11 @@ npm run generate-api-types
 
 ## Data
 
-Runtime files live in `./data` (gitignored): SQLite DB (`vantage.db`), uploaded sources, Docling JSON/HTML, and local OCR/layout model cache.
+Runtime files live in `./data` (gitignored): SQLite DB (`vantage.db`), uploaded sources, Docling JSON/HTML, and local OCR/layout model cache. Never commit or share `./data` — it can contain student work and names.
+
+## Security
+
+Vantage is a **local single-user** tool. There is **no authentication**. Compose binds the UI to `127.0.0.1` only. Do not expose it on a LAN, VPN, or public host without a reverse proxy and access control in front. Web/DokuWiki import makes outbound HTTP(S) requests from the server; only run that against sources you trust.
 
 ## Tests
 

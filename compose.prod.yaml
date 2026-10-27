@@ -34,7 +34,8 @@ services:
     image: ${IMAGE_REGISTRY:-}vantage-frontend:${IMAGE_TAG:-latest}
     pull_policy: always
     ports:
-      - "${HOST_WEB_PORT:-7847}:80"
+      # Localhost only: the API has no authentication.
+      - "127.0.0.1:${HOST_WEB_PORT:-7847}:80"
     depends_on:
       backend:
         condition: service_healthy
